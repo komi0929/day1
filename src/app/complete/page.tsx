@@ -110,8 +110,8 @@ export default function CompletePage() {
         <button
           onClick={handleShare}
           aria-label="Xでシェアする"
-          className="w-full py-4 px-6 rounded-xl font-bold text-sm text-white transition-all active:scale-95 flex items-center justify-center gap-3"
-          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
+          className="w-full py-4 px-6 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-3"
+          style={{ background: 'rgba(44,37,32,0.06)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
         >
           <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
             <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>

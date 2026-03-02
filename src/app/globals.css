@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  /* ─── 新カラーパレット：アート的多色グラデーション ─── */
+  /* ─── アナログ感のある暖色パレット ─── */
   --g-coral: #E8655A;
   --g-peach: #F2A87C;
   --g-amber: #E8C547;
@@ -11,18 +11,18 @@
   --g-violet: #8B6BB5;
   --g-rose: #C96B8B;
 
-  /* UI Colors */
-  --color-bg: #1A1716;
-  --color-surface: rgba(255, 255, 255, 0.06);
-  --color-surface-raised: rgba(255, 255, 255, 0.10);
-  --color-text: #F0EDE8;
-  --color-text-muted: rgba(240, 237, 232, 0.55);
-  --color-text-dim: rgba(240, 237, 232, 0.35);
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-accent: #E8A87C;
-  --color-accent-bright: #F2C49B;
-  --color-danger: #E8655A;
-  --color-success: #7BAE82;
+  /* ─── ライトテーマ UI Colors ─── */
+  --color-bg: #FDF6EE;
+  --color-surface: rgba(255, 255, 255, 0.65);
+  --color-surface-raised: rgba(255, 255, 255, 0.80);
+  --color-text: #2C2520;
+  --color-text-muted: rgba(44, 37, 32, 0.60);
+  --color-text-dim: rgba(44, 37, 32, 0.38);
+  --color-border: rgba(44, 37, 32, 0.10);
+  --color-accent: #D0734A;
+  --color-accent-bright: #E8906A;
+  --color-danger: #D05545;
+  --color-success: #5A9462;
 }
 
 @theme inline {
@@ -48,19 +48,24 @@ body {
 }
 
 ::selection {
-  background: rgba(232, 168, 124, 0.4);
-  color: #fff;
+  background: rgba(208, 115, 74, 0.30);
+  color: #1a1209;
 }
 
 input, textarea, button {
   font-family: inherit;
 }
 
-/* ─── SVGノイズフィルター (インライン化) ─── */
+/* ═══════════════════════════════════════════════
+   ノイズテクスチャ — 「ザラザラ」アナログ質感
+   ノイズ粒子を大きく・密度を高く・不透明度を強く
+   ═══════════════════════════════════════════════ */
+
+/* Layer 1: 粗いノイズ (メインのザラザラ感) */
 .noise-bg {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: 1;
   pointer-events: none;
   overflow: hidden;
 }
@@ -71,62 +76,77 @@ input, textarea, button {
   inset: -50%;
   width: 200%;
   height: 200%;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  filter: contrast(170%) brightness(1000%);
-  mix-blend-mode: overlay;
-  opacity: 0.12;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  filter: contrast(200%) brightness(800%);
+  mix-blend-mode: multiply;
+  opacity: 0.18;
 }
 
-/* ─── グレイニーグラデーション背景バリエーション ─── */
+/* Layer 2: 細かいノイズ (追加のテクスチャ) */
+.noise-bg::after {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  width: 160%;
+  height: 160%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n2'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n2)' opacity='1'/%3E%3C/svg%3E");
+  filter: contrast(300%) brightness(600%);
+  mix-blend-mode: multiply;
+  opacity: 0.10;
+}
+
+/* ─── グレイニーグラデーション背景バリエーション（ライト版） ─── */
 .gradient-main {
   background:
-    radial-gradient(ellipse at 20% 0%, var(--g-coral) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 10%, var(--g-violet) 0%, transparent 45%),
-    radial-gradient(ellipse at 60% 100%, var(--g-teal) 0%, transparent 50%),
-    radial-gradient(ellipse at 10% 80%, var(--g-amber) 0%, transparent 40%),
+    radial-gradient(ellipse at 20% 0%, rgba(232, 101, 90, 0.20) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 10%, rgba(139, 107, 181, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 100%, rgba(74, 155, 158, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse at 10% 80%, rgba(232, 197, 71, 0.15) 0%, transparent 45%),
     var(--color-bg);
 }
 
 .gradient-warm {
   background:
-    radial-gradient(ellipse at 30% 0%, var(--g-coral) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, var(--g-peach) 0%, transparent 45%),
-    radial-gradient(ellipse at 50% 90%, var(--g-amber) 0%, transparent 50%),
+    radial-gradient(ellipse at 30% 0%, rgba(232, 101, 90, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 20%, rgba(242, 168, 124, 0.20) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 90%, rgba(232, 197, 71, 0.18) 0%, transparent 55%),
     var(--color-bg);
 }
 
 .gradient-cool {
   background:
-    radial-gradient(ellipse at 20% 10%, var(--g-blue) 0%, transparent 50%),
-    radial-gradient(ellipse at 70% 0%, var(--g-teal) 0%, transparent 45%),
-    radial-gradient(ellipse at 40% 100%, var(--g-sage) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 10%, rgba(91, 120, 196, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse at 70% 0%, rgba(74, 155, 158, 0.20) 0%, transparent 50%),
+    radial-gradient(ellipse at 40% 100%, rgba(123, 174, 130, 0.18) 0%, transparent 55%),
     var(--color-bg);
 }
 
 .gradient-sunset {
   background:
-    radial-gradient(ellipse at 50% 0%, var(--g-rose) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 60%, var(--g-coral) 0%, transparent 45%),
-    radial-gradient(ellipse at 20% 80%, var(--g-amber) 0%, transparent 40%),
-    radial-gradient(ellipse at 60% 100%, var(--g-violet) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 0%, rgba(201, 107, 139, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 60%, rgba(232, 101, 90, 0.18) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 80%, rgba(232, 197, 71, 0.15) 0%, transparent 45%),
+    radial-gradient(ellipse at 60% 100%, rgba(139, 107, 181, 0.18) 0%, transparent 55%),
     var(--color-bg);
 }
 
-/* ─── グラスモーフィズムカード ─── */
+/* ─── グラスモーフィズムカード（ライト版） ─── */
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 16px;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 3px rgba(44, 37, 32, 0.04);
 }
 
 .card-raised {
   background: var(--color-surface-raised);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(44, 37, 32, 0.08);
   border-radius: 16px;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 4px 16px rgba(44, 37, 32, 0.06);
 }
 
 /* ─── ボタン ─── */
@@ -142,6 +162,7 @@ input, textarea, button {
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 2px 8px rgba(232, 101, 90, 0.20);
 }
 
 .btn-primary:active {
@@ -172,7 +193,7 @@ input, textarea, button {
 
 /* ─── 入力 ─── */
 .input-field {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.50);
   border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 12px 16px;
@@ -188,7 +209,8 @@ input, textarea, button {
 }
 
 .input-field:focus {
-  border-color: rgba(232, 168, 124, 0.5);
+  border-color: rgba(208, 115, 74, 0.40);
+  background: rgba(255, 255, 255, 0.70);
 }
 
 /* ─── タグ / バッジ ─── */
@@ -202,18 +224,18 @@ input, textarea, button {
 }
 
 .badge-do {
-  background: rgba(91, 120, 196, 0.15);
-  color: #7B9BE0;
+  background: rgba(91, 120, 196, 0.12);
+  color: #4A6AB0;
 }
 
 .badge-be {
-  background: rgba(139, 107, 181, 0.15);
-  color: #B08DE0;
+  background: rgba(139, 107, 181, 0.12);
+  color: #7B5EA8;
 }
 
 /* ─── テキストグラデーション ─── */
 .text-gradient {
-  background: linear-gradient(135deg, var(--g-peach), var(--g-coral), var(--g-rose));
+  background: linear-gradient(135deg, var(--g-coral), var(--g-peach), var(--g-rose));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -222,7 +244,7 @@ input, textarea, button {
 /* ─── コンテンツラッパー（ノイズの上に配置） ─── */
 .content-layer {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 /* ─── スクロールバー ─── */
@@ -235,6 +257,6 @@ input, textarea, button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(44, 37, 32, 0.12);
   border-radius: 4px;
 }

@@ -20,8 +20,8 @@ interface LearnData {
 const EMOTION_TAGS = ['共感', '驚き', '安心', '切なさ', '勇気', '感謝', '葛藤', '希望'];
 
 const BG_COLORS = [
-  '#1a1716', '#1d1a1f', '#1a1d1f', '#1f1d1a',
-  '#1a1716', '#1d1a1f', '#1a1d1f', '#1a1716',
+  '#FDF6EE', '#FBF0E4', '#F5EDE6', '#F7EFE2',
+  '#F3EBE0', '#F5EDE6', '#FBF0E4', '#FDF6EE',
 ];
 
 export default function LearnPage() {
@@ -98,7 +98,7 @@ export default function LearnPage() {
 
     if (bgRef.current) {
       bgRef.current.style.transition = 'background-color 1.5s ease-in-out';
-      bgRef.current.style.backgroundColor = '#1A1716';
+      bgRef.current.style.backgroundColor = '#FDF6EE';
     }
 
     await supabase
@@ -185,7 +185,7 @@ export default function LearnPage() {
   const seconds = timeLeft % 60;
 
   return (
-    <main ref={bgRef} className="min-h-dvh flex flex-col" style={{ backgroundColor: '#1a1716', transition: 'background-color 3s ease' }}>
+    <main ref={bgRef} className="min-h-dvh flex flex-col" style={{ backgroundColor: '#FDF6EE', transition: 'background-color 3s ease' }}>
       <div className="flex-1 flex flex-col p-5 max-w-lg mx-auto w-full">
 
         {/* Timer */}

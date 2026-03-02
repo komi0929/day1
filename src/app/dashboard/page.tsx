@@ -249,7 +249,7 @@ export default function DashboardPage() {
 
       {/* Check-in Modal */}
       {pendingCheckIn && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.7)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: 'rgba(44,37,32,0.35)', backdropFilter: 'blur(6px)' }}>
           <div className="card-raised w-full max-w-sm p-6 flex flex-col gap-5">
             <div className="text-center space-y-2">
               <h3 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
