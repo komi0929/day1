@@ -157,6 +157,11 @@ export default function LoginPage() {
           </button>
         </p>
 
+        <div className="flex justify-center gap-4 mt-4 text-xs" style={{ color: 'var(--color-text-dim)' }}>
+          <a href="/terms" className="underline hover:opacity-80">利用規約</a>
+          <a href="/privacy" className="underline hover:opacity-80">プライバシーポリシー</a>
+        </div>
+
       </div>
     </main>
   );

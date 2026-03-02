@@ -62,7 +62,8 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="icon" href="/icons/icon-192.png" type="image/png" />
         <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
       <body
