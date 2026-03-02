@@ -11,12 +11,13 @@ interface Bookmark {
   title: string;
   image_url: string | null;
   status: 'unread' | 'done';
+  ai_processing_status: string;
   created_at: string;
 }
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
   const [url, setUrl] = useState('');
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [activeTab, setActiveTab] = useState<'unread' | 'done'>('unread');
@@ -25,11 +26,29 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
 
+  // Pending check-in state
+  const [pendingCheckIn, setPendingCheckIn] = useState<{
+    id: string;
+    user_commitment: string;
+    articleTitle: string;
+  } | null>(null);
+  const [checkInSubmitting, setCheckInSubmitting] = useState(false);
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace('/login');
     }
   }, [user, authLoading, router]);
+
+  // Check if onboarding is needed
+  useEffect(() => {
+    if (!authLoading && user && profile) {
+      const hasOnboarded = profile.current_challenges && profile.current_challenges.length > 0;
+      if (!hasOnboarded) {
+        router.replace('/onboarding');
+      }
+    }
+  }, [user, profile, authLoading, router]);
 
   const loadBookmarks = useCallback(async () => {
     if (!supabase || !user) return;
@@ -57,12 +76,52 @@ export default function DashboardPage() {
     }
   }, [user]);
 
+  // Check for pending check-ins (DO sessions from previous days)
+  const checkPendingCheckIns = useCallback(async () => {
+    if (!supabase || !user) return;
+
+    const { data } = await supabase
+      .from('learning_sessions')
+      .select('id, user_commitment, ai_summary')
+      .eq('user_id', user.id)
+      .eq('article_type', 'DO')
+      .eq('check_in_status', 'pending')
+      .not('user_commitment', 'eq', '')
+      .order('completed_at', { ascending: false })
+      .limit(1);
+
+    if (data && data.length > 0) {
+      const session = data[0];
+      // Only show check-in if session is from a previous day
+      setPendingCheckIn({
+        id: session.id,
+        user_commitment: session.user_commitment || '',
+        articleTitle: session.ai_summary || '',
+      });
+    }
+  }, [user]);
+
   useEffect(() => {
     if (user) {
       loadBookmarks();
       loadStreak();
+      checkPendingCheckIns();
     }
-  }, [user, loadBookmarks, loadStreak]);
+  }, [user, loadBookmarks, loadStreak, checkPendingCheckIns]);
+
+  const handleCheckIn = async (status: 'completed' | 'skipped') => {
+    if (!supabase || !user || !pendingCheckIn) return;
+    setCheckInSubmitting(true);
+
+    await supabase
+      .from('learning_sessions')
+      .update({ check_in_status: status })
+      .eq('id', pendingCheckIn.id)
+      .eq('user_id', user.id);
+
+    setPendingCheckIn(null);
+    setCheckInSubmitting(false);
+  };
 
   const handleAddUrl = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +161,7 @@ export default function DashboardPage() {
           title,
           image_url: imageUrl,
           status: 'unread',
+          ai_processing_status: 'pending',
         });
 
       if (insertError) {
@@ -123,7 +183,10 @@ export default function DashboardPage() {
       const res = await fetch('/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: bookmark.url }),
+        body: JSON.stringify({
+          url: bookmark.url,
+          userChallenges: profile?.current_challenges || [],
+        }),
       });
       const data = await res.json();
 
@@ -137,8 +200,10 @@ export default function DashboardPage() {
         bookmarkId: bookmark.id,
         url: bookmark.url,
         title: bookmark.title,
-        summary: data.summary,
-        points: data.points,
+        articleType: data.articleType,
+        ideas: data.ideas,
+        question: data.question,
+        articleTitle: data.articleTitle,
       }));
 
       router.push('/learn');
@@ -168,6 +233,57 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-dvh flex flex-col" style={{ background: 'var(--color-cream)' }}>
+
+      {/* Check-in Modal */}
+      {pendingCheckIn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.4)' }}>
+          <div
+            className="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-5 shadow-xl"
+            style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
+          >
+            <div className="text-center space-y-2">
+              <div className="text-4xl">📋</div>
+              <h3 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
+                昨日のアクション、どうでした？
+              </h3>
+            </div>
+
+            <div
+              className="p-4 rounded-xl text-sm leading-relaxed"
+              style={{ background: 'var(--color-cream)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
+            >
+              💡 {pendingCheckIn.user_commitment}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => handleCheckIn('completed')}
+                disabled={checkInSubmitting}
+                className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-50"
+                style={{ background: '#34D399' }}
+              >
+                ✅ できた！
+              </button>
+              <button
+                onClick={() => handleCheckIn('completed')}
+                disabled={checkInSubmitting}
+                className="w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-50"
+                style={{ background: 'var(--color-cream-dark)', color: 'var(--color-text)' }}
+              >
+                🔄 アレンジしてやった
+              </button>
+              <button
+                onClick={() => handleCheckIn('skipped')}
+                disabled={checkInSubmitting}
+                className="w-full py-3 rounded-xl text-xs font-medium transition-all active:scale-[0.98] disabled:opacity-50"
+                style={{ color: 'var(--color-text-light)' }}
+              >
+                😅 できなかった（スキップ）
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <header className="px-5 pt-6 pb-4 flex justify-between items-center">
@@ -280,11 +396,11 @@ export default function DashboardPage() {
                     </p>
                     {loading === bm.id && (
                       <p className="text-xs mt-2 font-medium" style={{ color: 'var(--color-accent-dark)' }}>
-                        AIが記事を読み取っています...
+                        AIがあなたに合った学びを準備中...
                       </p>
                     )}
                     {activeTab === 'done' && bm.status === 'done' && (
-                      <p className="text-xs mt-2" style={{ color: 'var(--color-accent-dark)' }}>☀️ 学び完了</p>
+                      <p className="text-xs mt-2" style={{ color: 'var(--color-accent-dark)' }}>☀️ 血肉化済み</p>
                     )}
                   </div>
                 </button>

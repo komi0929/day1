@@ -5,24 +5,46 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
+interface Idea {
+  id: string;
+  text: string;
+}
+
 interface LearnData {
   bookmarkId: string;
   url: string;
   title: string;
-  summary: string;
-  points: string[];
+  articleType: 'DO' | 'BE';
+  ideas: Idea[] | null;
+  question: string | null;
+  articleTitle: string;
 }
+
+const EMOTION_TAGS = [
+  { emoji: '❤️‍🔥', label: '心が温かくなった' },
+  { emoji: '⚡', label: 'ハッとした' },
+  { emoji: '🤔', label: '考え込んだ' },
+  { emoji: '🥲', label: '涙が出た' },
+  { emoji: '💪', label: '勇気をもらった' },
+  { emoji: '🌫️', label: 'モヤモヤした' },
+];
 
 export default function LearnPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<LearnData | null>(null);
-  const [step, setStep] = useState(0); // 0=summary, 1=points, 2=memo
   const [timeLeft, setTimeLeft] = useState(300);
-  const [activeTab, setActiveTab] = useState<'action' | 'question' | 'learning'>('action');
-  const [memos, setMemos] = useState({ action: '', question: '', learning: '' });
   const [isCompleting, setIsCompleting] = useState(false);
   const bgRef = useRef<HTMLDivElement>(null);
+
+  // DO state
+  const [selectedIdea, setSelectedIdea] = useState<string | null>(null);
+  const [editedCommitment, setEditedCommitment] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+
+  // BE state
+  const [selectedEmotions, setSelectedEmotions] = useState<string[]>([]);
+  const [reflection, setReflection] = useState('');
 
   // Auth check
   useEffect(() => {
@@ -77,9 +99,28 @@ export default function LearnPage() {
     return progress > 0.5 ? '1px solid var(--color-border)' : '1px solid rgba(255,255,255,0.15)';
   }, []);
 
+  // Select an idea (DO)
+  const handleSelectIdea = (idea: Idea) => {
+    setSelectedIdea(idea.id);
+    setEditedCommitment(idea.text);
+    setIsEditing(false);
+  };
+
+  // Toggle emotion tag (BE)
+  const toggleEmotion = (emoji: string) => {
+    setSelectedEmotions((prev) =>
+      prev.includes(emoji) ? prev.filter((e) => e !== emoji) : [...prev, emoji]
+    );
+  };
+
+  // Can complete?
+  const canComplete = data?.articleType === 'DO'
+    ? selectedIdea !== null && editedCommitment.trim().length > 0
+    : selectedEmotions.length > 0 || reflection.trim().length > 0;
+
   // Handle completion — save to Supabase
   const handleComplete = async () => {
-    if (!data || !supabase || !user) return;
+    if (!data || !supabase || !user || !canComplete) return;
     setIsCompleting(true);
 
     // Apply fast-forward CSS transition
@@ -91,7 +132,7 @@ export default function LearnPage() {
     // 1. Mark bookmark as done
     await supabase
       .from('bookmarks')
-      .update({ status: 'done' })
+      .update({ status: 'done', ai_processing_status: 'completed' })
       .eq('id', data.bookmarkId)
       .eq('user_id', user.id);
 
@@ -101,25 +142,33 @@ export default function LearnPage() {
       .insert({
         user_id: user.id,
         bookmark_id: data.bookmarkId,
-        memo_action: memos.action,
-        memo_question: memos.question,
-        memo_learning: memos.learning,
-        ai_summary: data.summary,
-        ai_points: data.points,
+        article_type: data.articleType,
+        ai_generated_ideas: data.ideas || [],
+        ai_generated_question: data.question || '',
+        ai_summary: data.articleTitle,
+        ai_points: [],
+        user_commitment: data.articleType === 'DO' ? editedCommitment : '',
+        user_emotion_tags: data.articleType === 'BE' ? selectedEmotions : [],
+        user_reflection: data.articleType === 'BE' ? reflection : '',
+        check_in_status: data.articleType === 'DO' ? 'pending' : 'completed',
+        // Keep legacy fields empty
+        memo_action: '',
+        memo_question: '',
+        memo_learning: '',
       });
 
     // 3. Update streak in profile
     const today = new Date().toISOString().split('T')[0];
-    const { data: profile } = await supabase
+    const { data: profileData } = await supabase
       .from('profiles')
       .select('streak, last_completed_at')
       .eq('id', user.id)
       .single();
 
     let newStreak = 1;
-    if (profile) {
-      const lastDate = profile.last_completed_at
-        ? new Date(profile.last_completed_at).toISOString().split('T')[0]
+    if (profileData) {
+      const lastDate = profileData.last_completed_at
+        ? new Date(profileData.last_completed_at).toISOString().split('T')[0]
         : null;
 
       if (lastDate) {
@@ -128,9 +177,9 @@ export default function LearnPage() {
         const yesterdayStr = yesterday.toISOString().split('T')[0];
 
         if (lastDate === yesterdayStr) {
-          newStreak = (profile.streak ?? 0) + 1;
+          newStreak = (profileData.streak ?? 0) + 1;
         } else if (lastDate === today) {
-          newStreak = profile.streak ?? 1;
+          newStreak = profileData.streak ?? 1;
         }
       }
     }
@@ -140,17 +189,18 @@ export default function LearnPage() {
       .update({ streak: newStreak, last_completed_at: new Date().toISOString() })
       .eq('id', user.id);
 
-    // Store completion info in sessionStorage for the complete page
+    // Store completion info
     sessionStorage.setItem('day1_complete_data', JSON.stringify({
       streak: newStreak,
-      title: data.title,
-      memos,
+      title: data.articleTitle || data.title,
+      articleType: data.articleType,
+      commitment: data.articleType === 'DO' ? editedCommitment : '',
+      emotions: data.articleType === 'BE' ? selectedEmotions : [],
+      reflection: data.articleType === 'BE' ? reflection : '',
     }));
 
-    // Clear current learn data
     sessionStorage.removeItem('day1_current_learn');
 
-    // Wait for animation then navigate
     setTimeout(() => {
       router.push('/complete');
     }, 1700);
@@ -187,9 +237,20 @@ export default function LearnPage() {
 
       {/* Header */}
       <header className="px-5 pt-5 pb-3 flex justify-between items-center">
-        <h2 className="text-sm font-bold tracking-widest uppercase" style={{ color: subColor }}>
-          day1
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-bold tracking-widest uppercase" style={{ color: subColor }}>
+            day1
+          </h2>
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{
+              background: data.articleType === 'DO' ? 'rgba(59,130,246,0.15)' : 'rgba(168,85,247,0.15)',
+              color: data.articleType === 'DO' ? '#3B82F6' : '#A855F7',
+            }}
+          >
+            {data.articleType === 'DO' ? '🔧 DO' : '🌿 BE'}
+          </span>
+        </div>
         <div
           className="flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md"
           style={{ background: cardBg, border: cardBorder }}
@@ -201,139 +262,160 @@ export default function LearnPage() {
         </div>
       </header>
 
-      {/* Step Indicator */}
-      <div className="px-5 pb-4 flex gap-2">
-        {[0, 1, 2].map((s) => (
-          <div
-            key={s}
-            className="flex-1 h-1 rounded-full transition-all duration-300"
-            style={{
-              background: step >= s ? 'var(--color-accent)' : (cardBg),
-            }}
-          />
-        ))}
+      {/* Article Title */}
+      <div className="px-5 pb-4">
+        <p className="text-xs line-clamp-1" style={{ color: subColor }}>
+          📖 {data.articleTitle || data.title}
+        </p>
       </div>
 
       {/* Content */}
       <main className="flex-1 px-5 pb-5 flex flex-col" style={{ opacity: isCompleting ? 0.3 : 1, transition: 'opacity 0.5s' }}>
-        {step === 0 && (
+
+        {/* ===== DO: Action Ideas ===== */}
+        {data.articleType === 'DO' && data.ideas && (
           <section className="flex-1 flex flex-col gap-4">
             <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: subColor }}>
-              Step 1 — 概要をつかむ
+              あなたの課題に合わせた3つのアイデア
             </h3>
-            <div className="flex-1 p-5 rounded-2xl backdrop-blur-md" style={{ background: cardBg, border: cardBorder }}>
-              <p className="text-sm leading-relaxed" style={{ color: textColor }}>
-                {data.summary}
-              </p>
+
+            <div className="flex-1 flex flex-col gap-3">
+              {data.ideas.map((idea) => {
+                const isSelected = selectedIdea === idea.id;
+                return (
+                  <button
+                    key={idea.id}
+                    onClick={() => handleSelectIdea(idea)}
+                    className="w-full text-left p-4 rounded-xl backdrop-blur-md transition-all active:scale-[0.98]"
+                    style={{
+                      background: isSelected ? 'var(--color-accent)' : cardBg,
+                      border: isSelected ? '2px solid var(--color-accent-dark)' : cardBorder,
+                      color: isSelected ? '#fff' : textColor,
+                      boxShadow: isSelected ? '0 4px 12px rgba(232, 168, 124, 0.3)' : 'none',
+                    }}
+                  >
+                    <div className="flex gap-3 items-start">
+                      <span
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5"
+                        style={{
+                          background: isSelected ? 'rgba(255,255,255,0.3)' : 'var(--color-accent)',
+                          color: '#fff',
+                        }}
+                      >
+                        {isSelected ? '✓' : '💡'}
+                      </span>
+                      <p className="text-sm leading-relaxed">{idea.text}</p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
+
+            {/* Edit commitment area */}
+            {selectedIdea && (
+              <div className="rounded-xl p-4 backdrop-blur-md" style={{ background: cardBg, border: cardBorder }}>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-bold" style={{ color: subColor }}>
+                    今日のアクション
+                  </span>
+                  <button
+                    onClick={() => setIsEditing(!isEditing)}
+                    className="text-xs font-medium px-2 py-0.5 rounded"
+                    style={{ color: 'var(--color-accent-dark)' }}
+                  >
+                    {isEditing ? '完了' : '✏️ 自分の言葉に編集'}
+                  </button>
+                </div>
+                {isEditing ? (
+                  <textarea
+                    value={editedCommitment}
+                    onChange={(e) => setEditedCommitment(e.target.value)}
+                    className="w-full bg-transparent border-none outline-none resize-none text-sm leading-relaxed"
+                    style={{ color: textColor }}
+                    rows={3}
+                    placeholder="あなたの言葉でアクションを書き換えてください..."
+                  />
+                ) : (
+                  <p className="text-sm leading-relaxed" style={{ color: textColor }}>
+                    💡 {editedCommitment}
+                  </p>
+                )}
+              </div>
+            )}
+
             <button
-              onClick={() => setStep(1)}
-              className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98]"
+              onClick={handleComplete}
+              disabled={!canComplete || isCompleting}
+              className="w-full py-4 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-40 shadow-md"
               style={{ background: 'var(--color-accent)' }}
             >
-              次へ：キーポイントを読む →
+              ☀️ このアクションにコミットする
             </button>
           </section>
         )}
 
-        {step === 1 && (
-          <section className="flex-1 flex flex-col gap-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: subColor }}>
-              Step 2 — 3つのポイント
-            </h3>
-            <div className="flex-1 flex flex-col gap-3">
-              {data.points.map((pt, i) => (
-                <div
-                  key={i}
-                  className="p-4 rounded-xl backdrop-blur-md"
-                  style={{ background: cardBg, border: cardBorder }}
-                >
-                  <div className="flex gap-3 items-start">
-                    <span
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                      style={{ background: 'var(--color-accent)', color: '#fff' }}
-                    >
-                      {i + 1}
-                    </span>
-                    <p className="text-sm leading-relaxed" style={{ color: textColor }}>{pt}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setStep(0)}
-                className="flex-1 py-3.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98]"
-                style={{ background: cardBg, border: cardBorder, color: textColor }}
+        {/* ===== BE: Question & Emotion Tags ===== */}
+        {data.articleType === 'BE' && (
+          <section className="flex-1 flex flex-col gap-5">
+            {/* The Question */}
+            <div className="flex-1 flex flex-col items-center justify-center gap-6 py-4">
+              <div
+                className="p-6 rounded-2xl backdrop-blur-md text-center"
+                style={{ background: cardBg, border: cardBorder }}
               >
-                ← 戻る
-              </button>
-              <button
-                onClick={() => setStep(2)}
-                className="flex-1 py-3.5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98]"
-                style={{ background: 'var(--color-accent)' }}
-              >
-                次へ →
-              </button>
-            </div>
-          </section>
-        )}
-
-        {step === 2 && (
-          <section className="flex-1 flex flex-col gap-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: subColor }}>
-              Step 3 — あなたの考えを書こう
-            </h3>
-
-            {/* Memo Tabs */}
-            <div className="flex gap-1 rounded-xl p-1" style={{ background: cardBg }}>
-              {(['action', 'question', 'learning'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className="flex-1 py-2 text-xs font-medium rounded-lg transition-all"
-                  style={{
-                    background: activeTab === tab ? 'var(--color-accent)' : 'transparent',
-                    color: activeTab === tab ? '#fff' : subColor,
-                  }}
-                >
-                  {tab === 'action' ? 'アクション' : tab === 'question' ? '疑問' : '学び'}
-                </button>
-              ))}
+                <p className="text-base leading-relaxed font-medium" style={{ color: textColor }}>
+                  {data.question}
+                </p>
+              </div>
             </div>
 
-            {/* Textarea */}
-            <div className="flex-1 rounded-xl p-4 backdrop-blur-md" style={{ background: cardBg, border: cardBorder }}>
+            {/* Reflection textarea */}
+            <div className="rounded-xl p-4 backdrop-blur-md" style={{ background: cardBg, border: cardBorder }}>
               <textarea
-                value={memos[activeTab]}
-                onChange={(e) => setMemos({ ...memos, [activeTab]: e.target.value })}
-                placeholder={
-                  activeTab === 'action' ? 'この記事を読んで、明日からやってみたいことは？' :
-                  activeTab === 'question' ? '読んでいて浮かんだ疑問やモヤモヤは？' :
-                  'さらに深掘りしたいテーマやキーワードは？'
-                }
-                className="w-full h-full bg-transparent border-none outline-none resize-none text-sm leading-relaxed"
+                value={reflection}
+                onChange={(e) => setReflection(e.target.value)}
+                placeholder="思い浮かんだことを自由に..."
+                className="w-full bg-transparent border-none outline-none resize-none text-sm leading-relaxed"
                 style={{ color: textColor }}
+                rows={3}
               />
             </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={() => setStep(1)}
-                className="flex-1 py-3.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98]"
-                style={{ background: cardBg, border: cardBorder, color: textColor }}
-              >
-                ← 戻る
-              </button>
-              <button
-                onClick={handleComplete}
-                disabled={isCompleting}
-                className="flex-1 py-3.5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-50"
-                style={{ background: 'var(--color-accent)' }}
-              >
-                ☀️ 学びを完了する
-              </button>
+            {/* Emotion Tags */}
+            <div>
+              <p className="text-xs font-semibold mb-3 text-center" style={{ color: subColor }}>
+                この記事を通じて感じたこと
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {EMOTION_TAGS.map((tag) => {
+                  const isActive = selectedEmotions.includes(tag.emoji);
+                  return (
+                    <button
+                      key={tag.emoji}
+                      onClick={() => toggleEmotion(tag.emoji)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium transition-all active:scale-95"
+                      style={{
+                        background: isActive ? 'var(--color-accent)' : cardBg,
+                        border: isActive ? '2px solid var(--color-accent-dark)' : cardBorder,
+                        color: isActive ? '#fff' : textColor,
+                      }}
+                    >
+                      <span className="text-base">{tag.emoji}</span>
+                      {tag.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            <button
+              onClick={handleComplete}
+              disabled={!canComplete || isCompleting}
+              className="w-full py-4 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-40 shadow-md"
+              style={{ background: 'var(--color-accent)' }}
+            >
+              ☀️ この学びを刻む
+            </button>
           </section>
         )}
       </main>

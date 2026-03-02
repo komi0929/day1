@@ -5,18 +5,25 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
-interface HistoryItem {
+interface HistorySession {
   id: string;
-  url: string;
-  title: string;
-  status: 'unread' | 'done';
-  created_at: string;
+  article_type: 'DO' | 'BE' | null;
+  ai_summary: string;
+  user_commitment: string;
+  user_emotion_tags: string[];
+  user_reflection: string;
+  check_in_status: string;
+  completed_at: string;
+  bookmarks: {
+    url: string;
+    title: string;
+  } | null;
 }
 
 export default function HistoryPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const [doneItems, setDoneItems] = useState<HistoryItem[]>([]);
+  const [sessions, setSessions] = useState<HistorySession[]>([]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -26,15 +33,25 @@ export default function HistoryPage() {
 
   const loadData = useCallback(async () => {
     if (!supabase || !user) return;
+
     const { data, error } = await supabase
-      .from('bookmarks')
-      .select('*')
+      .from('learning_sessions')
+      .select(`
+        id,
+        article_type,
+        ai_summary,
+        user_commitment,
+        user_emotion_tags,
+        user_reflection,
+        check_in_status,
+        completed_at,
+        bookmarks (url, title)
+      `)
       .eq('user_id', user.id)
-      .eq('status', 'done')
-      .order('created_at', { ascending: false });
+      .order('completed_at', { ascending: false });
 
     if (!error && data) {
-      setDoneItems(data as HistoryItem[]);
+      setSessions(data as unknown as HistorySession[]);
     }
   }, [user]);
 
@@ -43,6 +60,11 @@ export default function HistoryPage() {
       loadData();
     }
   }, [user, loadData]);
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
 
   return (
     <main className="min-h-dvh flex flex-col" style={{ background: 'var(--color-cream)' }}>
@@ -61,7 +83,7 @@ export default function HistoryPage() {
 
       {/* List */}
       <section className="flex-1 px-5 pb-8">
-        {doneItems.length === 0 ? (
+        {sessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <span className="text-4xl">🌅</span>
             <p className="text-sm font-medium" style={{ color: 'var(--color-text-light)' }}>
@@ -70,23 +92,68 @@ export default function HistoryPage() {
           </div>
         ) : (
           <ul className="flex flex-col gap-3">
-            {doneItems.map((item) => (
+            {sessions.map((session) => (
               <li
-                key={item.id}
+                key={session.id}
                 className="p-4 rounded-xl shadow-sm"
                 style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
               >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>
-                      {item.title}
-                    </p>
-                    <p className="text-xs mt-1 truncate" style={{ color: 'var(--color-text-light)' }}>
-                      {item.url}
-                    </p>
+                {/* Header row */}
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{
+                        background: session.article_type === 'DO' ? 'rgba(59,130,246,0.1)' : 'rgba(168,85,247,0.1)',
+                        color: session.article_type === 'DO' ? '#3B82F6' : '#A855F7',
+                      }}
+                    >
+                      {session.article_type === 'DO' ? '🔧 DO' : '🌿 BE'}
+                    </span>
+                    <span className="text-[10px]" style={{ color: 'var(--color-text-light)' }}>
+                      {formatDate(session.completed_at)}
+                    </span>
                   </div>
-                  <span className="text-lg shrink-0 ml-2">☀️</span>
+                  {session.article_type === 'DO' && (
+                    <span className="text-[10px] font-medium" style={{
+                      color: session.check_in_status === 'completed' ? '#34D399' :
+                        session.check_in_status === 'skipped' ? '#F87171' : 'var(--color-text-light)'
+                    }}>
+                      {session.check_in_status === 'completed' ? '✅ 達成' :
+                        session.check_in_status === 'skipped' ? '⏭️ スキップ' : '⏳ チェックイン待ち'}
+                    </span>
+                  )}
                 </div>
+
+                {/* Title */}
+                <p className="text-sm font-semibold mb-2 line-clamp-1" style={{ color: 'var(--color-text)' }}>
+                  {session.bookmarks?.title || session.ai_summary || 'タイトルなし'}
+                </p>
+
+                {/* DO: commitment */}
+                {session.article_type === 'DO' && session.user_commitment && (
+                  <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--color-text-light)' }}>
+                    💡 {session.user_commitment}
+                  </p>
+                )}
+
+                {/* BE: emotions + reflection */}
+                {session.article_type === 'BE' && (
+                  <div className="flex flex-col gap-1">
+                    {session.user_emotion_tags && session.user_emotion_tags.length > 0 && (
+                      <div className="flex gap-1">
+                        {session.user_emotion_tags.map((emoji, i) => (
+                          <span key={i} className="text-lg">{emoji}</span>
+                        ))}
+                      </div>
+                    )}
+                    {session.user_reflection && (
+                      <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--color-text-light)' }}>
+                        {session.user_reflection}
+                      </p>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

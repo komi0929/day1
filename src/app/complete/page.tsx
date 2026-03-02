@@ -7,7 +7,10 @@ import { useAuth } from '@/lib/auth-context';
 interface CompleteData {
   streak: number;
   title: string;
-  memos: { action: string; question: string; learning: string };
+  articleType: 'DO' | 'BE';
+  commitment: string;
+  emotions: string[];
+  reflection: string;
 }
 
 export default function CompletePage() {
@@ -25,19 +28,29 @@ export default function CompletePage() {
     if (saved) {
       setCompleteData(JSON.parse(saved));
     } else {
-      // Fallback: show with default values
-      setCompleteData({ streak: 1, title: '', memos: { action: '', question: '', learning: '' } });
+      setCompleteData({
+        streak: 1,
+        title: '',
+        articleType: 'DO',
+        commitment: '',
+        emotions: [],
+        reflection: '',
+      });
     }
   }, [user, authLoading, router]);
 
   const handleShare = () => {
     if (!completeData) return;
 
-    let text = `#day1 で今日の学びを自分のものにしました ☀️\n\n`;
+    let text = `#day1 で今日の学びを血肉にしました ☀️\n\n`;
     if (completeData.title) text += `📖 ${completeData.title}\n\n`;
-    if (completeData.memos.action) {
-      text += `💡 ${completeData.memos.action.slice(0, 60)}${completeData.memos.action.length > 60 ? '...' : ''}\n\n`;
+
+    if (completeData.articleType === 'DO' && completeData.commitment) {
+      text += `💡 今日のアクション:\n${completeData.commitment.slice(0, 80)}${completeData.commitment.length > 80 ? '...' : ''}\n\n`;
+    } else if (completeData.articleType === 'BE' && completeData.emotions.length > 0) {
+      text += `${completeData.emotions.join(' ')} ← この記事で感じたこと\n\n`;
     }
+
     text += `🔥 ${completeData.streak}日連続達成！\n`;
 
     const shareUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
@@ -63,12 +76,33 @@ export default function CompletePage() {
 
         <header className="text-center space-y-2">
           <h2 className="text-2xl font-extrabold" style={{ color: 'var(--color-text)' }}>
-            今日の学び、完了！
+            {completeData.articleType === 'DO' ? 'アクション、コミット完了！' : '今日の内省、完了！'}
           </h2>
           <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>
             すてきな朝のスタートですね ✨
           </p>
         </header>
+
+        {/* What you committed/felt */}
+        {completeData.articleType === 'DO' && completeData.commitment && (
+          <div
+            className="w-full p-4 rounded-xl text-sm leading-relaxed"
+            style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+          >
+            <span className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text-light)' }}>
+              💡 今日のアクション
+            </span>
+            {completeData.commitment}
+          </div>
+        )}
+
+        {completeData.articleType === 'BE' && completeData.emotions.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-2">
+            {completeData.emotions.map((emoji, i) => (
+              <span key={i} className="text-3xl">{emoji}</span>
+            ))}
+          </div>
+        )}
 
         {/* Streak */}
         <div className="flex flex-col items-center gap-1">
@@ -80,7 +114,7 @@ export default function CompletePage() {
           </span>
         </div>
 
-        {/* Share Button — X logo */}
+        {/* Share Button */}
         <button
           onClick={handleShare}
           className="w-full py-4 px-6 rounded-xl font-bold text-sm text-white transition-all active:scale-95 flex items-center justify-center gap-3 shadow-md"
