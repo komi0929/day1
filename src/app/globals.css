@@ -61,7 +61,7 @@ input, textarea, button {
    ノイズ粒子を大きく・密度を高く・不透明度を強く
    ═══════════════════════════════════════════════ */
 
-/* Layer 1: 粗いノイズ (メインのザラザラ感) */
+/* Layer 1: 粗いノイズ (メインのザラザラ感) — 微動アニメーション付き */
 .noise-bg {
   position: fixed;
   inset: 0;
@@ -80,9 +80,10 @@ input, textarea, button {
   filter: contrast(200%) brightness(800%);
   mix-blend-mode: multiply;
   opacity: 0.18;
+  animation: noiseDrift1 8s ease-in-out infinite alternate;
 }
 
-/* Layer 2: 細かいノイズ (追加のテクスチャ) */
+/* Layer 2: 細かいノイズ (追加のテクスチャ) — 逆方向に微動 */
 .noise-bg::after {
   content: '';
   position: absolute;
@@ -93,6 +94,7 @@ input, textarea, button {
   filter: contrast(300%) brightness(600%);
   mix-blend-mode: multiply;
   opacity: 0.10;
+  animation: noiseDrift2 12s ease-in-out infinite alternate;
 }
 
 /* ─── グレイニーグラデーション背景バリエーション（ライト版） ─── */
@@ -259,4 +261,42 @@ input, textarea, button {
 ::-webkit-scrollbar-thumb {
   background: rgba(44, 37, 32, 0.12);
   border-radius: 4px;
+}
+
+/* ═══════════════════════════════════════════════
+   ノイズ微動アニメーション
+   2層を異なる速度・方向でゆっくり移動させ
+   「生きた」テクスチャ感を演出
+   ═══════════════════════════════════════════════ */
+@keyframes noiseDrift1 {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-2%, 1%);
+  }
+  50% {
+    transform: translate(1%, -2%);
+  }
+  75% {
+    transform: translate(-1%, -1%);
+  }
+  100% {
+    transform: translate(2%, 1.5%);
+  }
+}
+
+@keyframes noiseDrift2 {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  33% {
+    transform: translate(1.5%, 2%) rotate(0.5deg);
+  }
+  66% {
+    transform: translate(-1%, -1.5%) rotate(-0.3deg);
+  }
+  100% {
+    transform: translate(-2%, 1%) rotate(0.2deg);
+  }
 }
