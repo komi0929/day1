@@ -40,15 +40,15 @@ export default function DashboardPage() {
     }
   }, [user, authLoading, router]);
 
-  // Check if onboarding is needed
+  // Check if onboarding is needed (only after profile is fully loaded)
+  const profileReady = !authLoading && user && profile !== null;
+  const hasOnboarded = profile?.current_challenges && profile.current_challenges.length > 0;
+
   useEffect(() => {
-    if (!authLoading && user && profile) {
-      const hasOnboarded = profile.current_challenges && profile.current_challenges.length > 0;
-      if (!hasOnboarded) {
-        router.replace('/onboarding');
-      }
+    if (profileReady && !hasOnboarded) {
+      router.replace('/onboarding');
     }
-  }, [user, profile, authLoading, router]);
+  }, [profileReady, hasOnboarded, router]);
 
   const loadBookmarks = useCallback(async () => {
     if (!supabase || !user) return;
@@ -76,23 +76,27 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  // Check for pending check-ins (DO sessions from previous days)
+  // Check for pending check-ins (DO sessions from PREVIOUS days only)
   const checkPendingCheckIns = useCallback(async () => {
     if (!supabase || !user) return;
 
+    // Only check-in sessions from before today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
     const { data } = await supabase
       .from('learning_sessions')
-      .select('id, user_commitment, ai_summary')
+      .select('id, user_commitment, ai_summary, completed_at')
       .eq('user_id', user.id)
       .eq('article_type', 'DO')
       .eq('check_in_status', 'pending')
       .not('user_commitment', 'eq', '')
+      .lt('completed_at', todayStart.toISOString())
       .order('completed_at', { ascending: false })
       .limit(1);
 
     if (data && data.length > 0) {
       const session = data[0];
-      // Only show check-in if session is from a previous day
       setPendingCheckIn({
         id: session.id,
         user_commitment: session.user_commitment || '',
@@ -223,7 +227,8 @@ export default function DashboardPage() {
   const done = bookmarks.filter(b => b.status === 'done');
   const currentList = activeTab === 'unread' ? unread : done;
 
-  if (authLoading || !user) {
+  // Wait for auth AND profile to be loaded before rendering
+  if (authLoading || !user || !profileReady) {
     return (
       <main className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
         <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>

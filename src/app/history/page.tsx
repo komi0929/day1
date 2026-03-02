@@ -45,6 +45,8 @@ export default function HistoryPage() {
         user_reflection,
         check_in_status,
         completed_at,
+        bookmark_id,
+        memo_action,
         bookmarks (url, title)
       `)
       .eq('user_id', user.id)
@@ -101,6 +103,7 @@ export default function HistoryPage() {
                 {/* Header row */}
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-2">
+                    {session.article_type ? (
                     <span
                       className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                       style={{
@@ -110,6 +113,14 @@ export default function HistoryPage() {
                     >
                       {session.article_type === 'DO' ? '🔧 DO' : '🌿 BE'}
                     </span>
+                    ) : (
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: 'rgba(120,120,120,0.1)', color: '#888' }}
+                    >
+                      📝 旧版
+                    </span>
+                    )}
                     <span className="text-[10px]" style={{ color: 'var(--color-text-light)' }}>
                       {formatDate(session.completed_at)}
                     </span>

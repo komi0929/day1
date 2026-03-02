@@ -31,7 +31,7 @@ const EMOTION_TAGS = [
 
 export default function LearnPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refreshProfile } = useAuth();
   const [data, setData] = useState<LearnData | null>(null);
   const [timeLeft, setTimeLeft] = useState(300);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -188,6 +188,9 @@ export default function LearnPage() {
       .from('profiles')
       .update({ streak: newStreak, last_completed_at: new Date().toISOString() })
       .eq('id', user.id);
+
+    // Refresh profile so dashboard shows updated streak
+    await refreshProfile();
 
     // Store completion info
     sessionStorage.setItem('day1_complete_data', JSON.stringify({
