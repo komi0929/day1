@@ -414,28 +414,30 @@ export default function DashboardPage() {
                     cursor: activeTab === 'done' ? 'default' : 'pointer',
                   }}
                 >
-                  {bm.image_url && (
-                    <div className="w-full h-36 overflow-hidden">
-                      <img
-                        src={bm.image_url}
-                        alt={bm.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                      />
-                    </div>
-                  )}
-                  <div className="p-4">
-                    <p className="text-sm font-semibold line-clamp-2" style={{ color: 'var(--color-text)' }}>
-                      {bm.title}
-                    </p>
-                    {loading === bm.id && (
-                      <p className="text-xs mt-2 font-medium" style={{ color: 'var(--color-accent)' }}>
-                        AIがあなたに合った学びを準備中...
+                  <div className="p-3 flex gap-3 items-center">
+                    {bm.image_url && (
+                      <div className="shrink-0 w-14 h-14 rounded-lg overflow-hidden" style={{ background: 'var(--color-surface)' }}>
+                        <img
+                          src={bm.image_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold line-clamp-2 leading-snug" style={{ color: 'var(--color-text)' }}>
+                        {bm.title}
                       </p>
-                    )}
-                    {activeTab === 'done' && bm.status === 'done' && (
-                      <p className="text-xs mt-2" style={{ color: 'var(--color-accent)' }}>学習済み</p>
-                    )}
+                      {loading === bm.id && (
+                        <p className="text-[11px] mt-1 font-medium" style={{ color: 'var(--color-accent)' }}>
+                          AIが学びを準備中...
+                        </p>
+                      )}
+                      {activeTab === 'done' && bm.status === 'done' && (
+                        <p className="text-[11px] mt-1 font-medium" style={{ color: 'var(--color-accent)' }}>学習済み</p>
+                      )}
+                    </div>
                   </div>
                 </button>
               </li>
