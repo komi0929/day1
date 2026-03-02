@@ -29,11 +29,20 @@ export const metadata: Metadata = {
     siteName: "day1",
     type: "website",
     locale: "ja_JP",
+    images: [
+      {
+        url: "https://day1.hitokoto.tech/og-image.png",
+        width: 1200,
+        height: 1200,
+        alt: "day1 — 今日の朝を、学びではじめよう",
+      },
+    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "day1 — 今日の朝を、学びではじめよう",
     description: "noteの記事を血肉にする。1日5分の朝習慣アプリ。",
+    images: ["https://day1.hitokoto.tech/og-image.png"],
   },
 };
 
