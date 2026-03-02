@@ -26,7 +26,6 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
 
-  // Pending check-in state
   const [pendingCheckIn, setPendingCheckIn] = useState<{
     id: string;
     user_commitment: string;
@@ -40,7 +39,6 @@ export default function DashboardPage() {
     }
   }, [user, authLoading, router]);
 
-  // Check if onboarding is needed (only after profile is fully loaded)
   const profileReady = !authLoading && user && profile !== null;
   const hasOnboarded = profile?.current_challenges && profile.current_challenges.length > 0;
 
@@ -76,11 +74,9 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  // Check for pending check-ins (DO sessions from PREVIOUS days only)
   const checkPendingCheckIns = useCallback(async () => {
     if (!supabase || !user) return;
 
-    // Only check-in sessions from before today
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -137,11 +133,10 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!url.trim() || !supabase || !user) return;
 
-    // URLバリデーション（protocol + domain）
     try {
       const parsed = new URL(url.trim());
       if (parsed.protocol !== 'https:' || !parsed.hostname.endsWith('note.com')) {
-        setError('現在、note.comのhttps記事URLのみ対応しています。');
+        setError('note.comのhttps記事URLのみ対応しています。');
         return;
       }
     } catch {
@@ -153,7 +148,6 @@ export default function DashboardPage() {
     setError(null);
 
     try {
-      // Fetch OGP metadata
       let title = url.split('/').pop()?.replace(/-/g, ' ') || 'Untitled';
       let imageUrl: string | null = null;
 
@@ -168,7 +162,7 @@ export default function DashboardPage() {
         if (ogpData.title) title = ogpData.title;
         if (ogpData.image) imageUrl = ogpData.image;
       } catch {
-        // OGP fetch failed, use fallback title
+        // OGP fetch failed
       }
 
       const { error: insertError } = await supabase
@@ -242,37 +236,32 @@ export default function DashboardPage() {
   const done = bookmarks.filter(b => b.status === 'done');
   const currentList = activeTab === 'unread' ? unread : done;
 
-  // Wait for auth AND profile to be loaded before rendering
   if (authLoading || !user || !profileReady) {
     return (
-      <main className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
-        <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>
+      <main className="min-h-dvh flex items-center justify-center gradient-main">
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>読み込み中...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-dvh flex flex-col" style={{ background: 'var(--color-cream)' }}>
+    <main className="min-h-dvh flex flex-col gradient-main">
 
       {/* Check-in Modal */}
       {pendingCheckIn && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.4)' }}>
-          <div
-            className="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-5 shadow-xl"
-            style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.7)' }}>
+          <div className="card-raised w-full max-w-sm p-6 flex flex-col gap-5">
             <div className="text-center space-y-2">
-              <div className="text-4xl">📋</div>
               <h3 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
                 昨日のアクション、どうでした？
               </h3>
             </div>
 
             <div
-              className="p-4 rounded-xl text-sm leading-relaxed"
-              style={{ background: 'var(--color-cream)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
+              className="card p-4 text-sm leading-relaxed"
+              style={{ color: 'var(--color-text)' }}
             >
-              💡 {pendingCheckIn.user_commitment}
+              {pendingCheckIn.user_commitment}
             </div>
 
             <div className="flex flex-col gap-2">
@@ -280,25 +269,24 @@ export default function DashboardPage() {
                 onClick={() => handleCheckIn('completed')}
                 disabled={checkInSubmitting}
                 className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-50"
-                style={{ background: '#34D399' }}
+                style={{ background: 'var(--g-sage)' }}
               >
-                ✅ できた！
+                できた！
               </button>
               <button
                 onClick={() => handleCheckIn('completed')}
                 disabled={checkInSubmitting}
-                className="w-full py-3.5 rounded-xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-50"
-                style={{ background: 'var(--color-cream-dark)', color: 'var(--color-text)' }}
+                className="btn-ghost w-full"
               >
-                🔄 アレンジしてやった
+                アレンジしてやった
               </button>
               <button
                 onClick={() => handleCheckIn('skipped')}
                 disabled={checkInSubmitting}
                 className="w-full py-3 rounded-xl text-xs font-medium transition-all active:scale-[0.98] disabled:opacity-50"
-                style={{ color: 'var(--color-text-light)' }}
+                style={{ color: 'var(--color-text-dim)' }}
               >
-                😅 できなかった（スキップ）
+                できなかった（スキップ）
               </button>
             </div>
           </div>
@@ -308,15 +296,15 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="px-5 pt-6 pb-4 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-extrabold" style={{ color: 'var(--color-text)' }}>day1</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-light)' }}>
-            {streak > 0 ? `🔥 ${streak}日連続！` : 'おはようございます ☀️'}
+          <h1 className="text-2xl font-black text-gradient">day1</h1>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-dim)' }}>
+            {streak > 0 ? `${streak}日連続達成` : 'おはようございます'}
           </p>
         </div>
         <button
           onClick={handleLogout}
           className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-          style={{ color: 'var(--color-text-light)', background: 'var(--color-cream-dark)' }}
+          style={{ color: 'var(--color-text-dim)', background: 'var(--color-surface)' }}
         >
           ログアウト
         </button>
@@ -330,24 +318,19 @@ export default function DashboardPage() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="note記事のURLを追加..."
-            className="flex-1 px-4 py-3 rounded-xl text-sm outline-none transition-all"
-            style={{
-              background: 'var(--color-card)',
-              border: '1px solid var(--color-border)',
-              color: 'var(--color-text)',
-            }}
+            className="input-field flex-1"
           />
           <button
             type="submit"
             disabled={adding}
-            className="px-4 py-3 rounded-xl text-sm font-bold text-white transition-all active:scale-95 shrink-0 disabled:opacity-50"
-            style={{ background: 'var(--color-accent)' }}
+            className="btn-primary shrink-0 disabled:opacity-50"
+            style={{ padding: '12px 16px' }}
           >
-            {adding ? '取得中...' : '追加'}
+            {adding ? '取得中' : '追加'}
           </button>
         </form>
         {error && (
-          <p className="mt-2 text-xs px-1" style={{ color: '#DC2626' }}>{error}</p>
+          <p className="mt-2 text-xs px-1" style={{ color: 'var(--g-coral)' }}>{error}</p>
         )}
       </section>
 
@@ -357,8 +340,8 @@ export default function DashboardPage() {
           onClick={() => setActiveTab('unread')}
           className="flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all"
           style={{
-            background: activeTab === 'unread' ? 'var(--color-accent)' : 'var(--color-cream-dark)',
-            color: activeTab === 'unread' ? '#fff' : 'var(--color-text-light)',
+            background: activeTab === 'unread' ? 'linear-gradient(135deg, var(--g-coral), var(--g-peach))' : 'var(--color-surface)',
+            color: activeTab === 'unread' ? '#fff' : 'var(--color-text-muted)',
           }}
         >
           未読 ({unread.length})
@@ -367,8 +350,8 @@ export default function DashboardPage() {
           onClick={() => setActiveTab('done')}
           className="flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all"
           style={{
-            background: activeTab === 'done' ? 'var(--color-accent)' : 'var(--color-cream-dark)',
-            color: activeTab === 'done' ? '#fff' : 'var(--color-text-light)',
+            background: activeTab === 'done' ? 'linear-gradient(135deg, var(--g-coral), var(--g-peach))' : 'var(--color-surface)',
+            color: activeTab === 'done' ? '#fff' : 'var(--color-text-muted)',
           }}
         >
           完了済み ({done.length})
@@ -379,9 +362,8 @@ export default function DashboardPage() {
       <section className="flex-1 px-5 pb-8 overflow-y-auto">
         {currentList.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <span className="text-4xl">📚</span>
-            <p className="text-sm font-medium" style={{ color: 'var(--color-text-light)' }}>
-              {activeTab === 'unread' ? 'noteの記事URLを追加してみましょう！' : 'まだ完了した記事がありません。'}
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-dim)' }}>
+              {activeTab === 'unread' ? 'noteの記事URLを追加してみましょう' : 'まだ完了した記事がありません'}
             </p>
           </div>
         ) : (
@@ -391,15 +373,12 @@ export default function DashboardPage() {
                 <button
                   onClick={() => activeTab === 'unread' ? handleSelectArticle(bm) : undefined}
                   disabled={loading === bm.id || activeTab === 'done'}
-                  className="w-full text-left rounded-xl transition-all active:scale-[0.98] shadow-sm overflow-hidden"
+                  className="card w-full text-left transition-all active:scale-[0.98] overflow-hidden"
                   style={{
-                    background: 'var(--color-card)',
-                    border: '1px solid var(--color-border)',
                     opacity: loading === bm.id ? 0.6 : 1,
                     cursor: activeTab === 'done' ? 'default' : 'pointer',
                   }}
                 >
-                  {/* OGP Image */}
                   {bm.image_url && (
                     <div className="w-full h-36 overflow-hidden">
                       <img
@@ -415,12 +394,12 @@ export default function DashboardPage() {
                       {bm.title}
                     </p>
                     {loading === bm.id && (
-                      <p className="text-xs mt-2 font-medium" style={{ color: 'var(--color-accent-dark)' }}>
+                      <p className="text-xs mt-2 font-medium" style={{ color: 'var(--color-accent)' }}>
                         AIがあなたに合った学びを準備中...
                       </p>
                     )}
                     {activeTab === 'done' && bm.status === 'done' && (
-                      <p className="text-xs mt-2" style={{ color: 'var(--color-accent-dark)' }}>☀️ 血肉化済み</p>
+                      <p className="text-xs mt-2" style={{ color: 'var(--color-accent)' }}>血肉化済み</p>
                     )}
                   </div>
                 </button>

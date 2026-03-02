@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
 
 interface CompleteData {
   streak: number;
@@ -15,15 +14,9 @@ interface CompleteData {
 
 export default function CompletePage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
   const [completeData, setCompleteData] = useState<CompleteData | null>(null);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace('/login');
-      return;
-    }
-
     const saved = sessionStorage.getItem('day1_complete_data');
     if (saved) {
       setCompleteData(JSON.parse(saved));
@@ -37,80 +30,79 @@ export default function CompletePage() {
         reflection: '',
       });
     }
-  }, [user, authLoading, router]);
+  }, []);
 
   const handleShare = () => {
     if (!completeData) return;
+    const text = completeData.articleType === 'DO'
+      ? `day1で学んで、明日やること決めた。\n\n「${completeData.commitment}」\n\n#day1 #朝活`
+      : `day1で記事を読んで、内省した。\n\n${completeData.emotions.join(' / ')}\n\n#day1 #朝活`;
 
-    let text = `#day1 で今日の学びを血肉にしました ☀️\n\n`;
-    if (completeData.title) text += `📖 ${completeData.title}\n\n`;
-
-    if (completeData.articleType === 'DO' && completeData.commitment) {
-      text += `💡 今日のアクション:\n${completeData.commitment.slice(0, 80)}${completeData.commitment.length > 80 ? '...' : ''}\n\n`;
-    } else if (completeData.articleType === 'BE' && completeData.emotions.length > 0) {
-      text += `${completeData.emotions.join(' ')} ← この記事で感じたこと\n\n`;
-    }
-
-    text += `🔥 ${completeData.streak}日連続達成！\n`;
-
-    const shareUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
-    window.open(shareUrl, '_blank');
+    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+    window.open(xUrl, '_blank');
   };
 
-  if (!completeData || authLoading) {
+  if (!completeData) {
     return (
-      <main className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
-        <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>
+      <main className="min-h-dvh flex items-center justify-center gradient-main">
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>読み込み中...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-dvh flex flex-col items-center justify-center p-6" style={{ background: 'var(--color-cream)' }}>
-      <div className="w-full max-w-sm flex flex-col items-center gap-8">
+    <main className="min-h-dvh flex flex-col items-center justify-center p-6 gradient-sunset">
+      <div className="w-full max-w-sm flex flex-col items-center gap-8 text-center">
 
-        {/* Sunrise emoji */}
-        <div className="text-7xl animate-bounce" style={{ animationDuration: '2s' }}>
-          ☀️
+        <div className="space-y-3">
+          <h1 className="text-3xl font-black text-gradient">
+            血肉化、完了。
+          </h1>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            新しい day1 がはじまりました
+          </p>
         </div>
 
-        <header className="text-center space-y-2">
-          <h2 className="text-2xl font-extrabold" style={{ color: 'var(--color-text)' }}>
-            {completeData.articleType === 'DO' ? 'アクション、コミット完了！' : '今日の内省、完了！'}
-          </h2>
-          <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>
-            すてきな朝のスタートですね ✨
-          </p>
-        </header>
-
-        {/* What you committed/felt */}
-        {completeData.articleType === 'DO' && completeData.commitment && (
-          <div
-            className="w-full p-4 rounded-xl text-sm leading-relaxed"
-            style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-          >
-            <span className="text-xs font-bold block mb-1" style={{ color: 'var(--color-text-light)' }}>
-              💡 今日のアクション
+        {/* Article info */}
+        <div className="card p-4 w-full text-left">
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`badge ${completeData.articleType === 'DO' ? 'badge-do' : 'badge-be'}`}>
+              {completeData.articleType}
             </span>
-            {completeData.commitment}
+          </div>
+          <p className="text-sm font-medium line-clamp-2" style={{ color: 'var(--color-text)' }}>
+            {completeData.title}
+          </p>
+        </div>
+
+        {/* DO: commitment */}
+        {completeData.articleType === 'DO' && completeData.commitment && (
+          <div className="card p-4 w-full text-left">
+            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--color-text-dim)' }}>
+              明日のアクション
+            </p>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text)' }}>
+              {completeData.commitment}
+            </p>
           </div>
         )}
 
+        {/* BE: emotions */}
         {completeData.articleType === 'BE' && completeData.emotions.length > 0 && (
           <div className="flex flex-wrap justify-center gap-2">
-            {completeData.emotions.map((emoji, i) => (
-              <span key={i} className="text-3xl">{emoji}</span>
+            {completeData.emotions.map((tag, i) => (
+              <span key={i} className="badge badge-be">{tag}</span>
             ))}
           </div>
         )}
 
         {/* Streak */}
         <div className="flex flex-col items-center gap-1">
-          <span className="text-xs uppercase tracking-widest font-bold" style={{ color: 'var(--color-text-light)' }}>
+          <span className="text-xs uppercase tracking-widest font-bold" style={{ color: 'var(--color-text-dim)' }}>
             連続達成
           </span>
-          <span className="text-4xl font-black tabular-nums" style={{ color: 'var(--color-text)' }}>
-            {completeData.streak} <span className="text-xl font-medium" style={{ color: 'var(--color-text-light)' }}>日</span>
+          <span className="text-4xl font-black tabular-nums text-gradient">
+            {completeData.streak} <span className="text-xl font-medium" style={{ color: 'var(--color-text-muted)' }}>日</span>
           </span>
         </div>
 
@@ -118,8 +110,8 @@ export default function CompletePage() {
         <button
           onClick={handleShare}
           aria-label="Xでシェアする"
-          className="w-full py-4 px-6 rounded-xl font-bold text-sm text-white transition-all active:scale-95 flex items-center justify-center gap-3 shadow-md"
-          style={{ background: '#000000' }}
+          className="w-full py-4 px-6 rounded-xl font-bold text-sm text-white transition-all active:scale-95 flex items-center justify-center gap-3"
+          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
         >
           <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
             <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
@@ -131,17 +123,15 @@ export default function CompletePage() {
         <div className="flex gap-3 w-full">
           <button
             onClick={() => router.push('/dashboard')}
-            className="flex-1 py-3 rounded-xl text-sm font-semibold transition-all active:scale-95"
-            style={{ background: 'var(--color-cream-dark)', color: 'var(--color-text)' }}
+            className="btn-ghost flex-1"
           >
-            TOPに戻る
+            ダッシュボード
           </button>
           <button
             onClick={() => router.push('/history')}
-            className="flex-1 py-3 rounded-xl text-sm font-semibold transition-all active:scale-95"
-            style={{ background: 'var(--color-cream-dark)', color: 'var(--color-text)' }}
+            className="btn-ghost flex-1"
           >
-            学習履歴
+            履歴
           </button>
         </div>
 

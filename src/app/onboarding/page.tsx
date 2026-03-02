@@ -6,14 +6,14 @@ import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
 
 const CHALLENGES = [
-  { id: 'career', emoji: '💼', label: '仕事 / キャリア', description: '成長・転職・スキルアップ' },
-  { id: 'relationships', emoji: '🤝', label: '人間関係', description: 'コミュニケーション・信頼' },
-  { id: 'mindset', emoji: '🧠', label: 'マインド / メンタル', description: '思考法・ストレス・自己理解' },
-  { id: 'money', emoji: '💰', label: 'お金 / 資産', description: '貯蓄・投資・経済的自由' },
-  { id: 'health', emoji: '🏃', label: '健康 / ライフスタイル', description: '習慣・運動・食事・睡眠' },
-  { id: 'skills', emoji: '📚', label: 'スキルアップ', description: '学習法・読書・資格' },
-  { id: 'creativity', emoji: '🎨', label: '創造性 / 表現', description: '発想力・アウトプット・副業' },
-  { id: 'purpose', emoji: '🧭', label: '生き方 / 哲学', description: '価値観・人生の方向性' },
+  { id: 'career', label: '仕事 / キャリア', description: '成長・転職・スキルアップ' },
+  { id: 'relationships', label: '人間関係', description: 'コミュニケーション・信頼' },
+  { id: 'mindset', label: 'マインド / メンタル', description: '思考法・ストレス・自己理解' },
+  { id: 'money', label: 'お金 / 資産', description: '貯蓄・投資・経済的自由' },
+  { id: 'health', label: '健康 / ライフスタイル', description: '習慣・運動・食事・睡眠' },
+  { id: 'skills', label: 'スキルアップ', description: '学習法・読書・資格' },
+  { id: 'creativity', label: '創造性 / 表現', description: '発想力・アウトプット・副業' },
+  { id: 'purpose', label: '生き方 / 哲学', description: '価値観・人生の方向性' },
 ];
 
 export default function OnboardingPage() {
@@ -21,7 +21,7 @@ export default function OnboardingPage() {
   const { user, loading: authLoading, profile, refreshProfile } = useAuth();
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [step, setStep] = useState(0); // 0: welcome, 1: select
+  const [step, setStep] = useState(0);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -29,7 +29,6 @@ export default function OnboardingPage() {
     }
   }, [user, authLoading, router]);
 
-  // Already onboarded? Go to dashboard
   useEffect(() => {
     if (profile && profile.current_challenges && profile.current_challenges.length > 0) {
       router.replace('/dashboard');
@@ -53,60 +52,54 @@ export default function OnboardingPage() {
       .update({ current_challenges: labels })
       .eq('id', user.id);
 
-    // Refresh profile in AuthContext so dashboard sees the updated data
     await refreshProfile();
-
     router.replace('/dashboard');
   };
 
   if (authLoading || !user) {
     return (
-      <main className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
-        <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>
+      <main className="min-h-dvh flex items-center justify-center gradient-main">
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>読み込み中...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-dvh flex flex-col items-center justify-center p-6" style={{ background: 'var(--color-cream)' }}>
+    <main className="min-h-dvh flex flex-col items-center justify-center p-6 gradient-warm">
       <div className="w-full max-w-sm flex flex-col gap-8">
 
         {step === 0 && (
           <>
-            {/* Welcome */}
             <div className="text-center space-y-4">
-              <div className="text-6xl">☀️</div>
-              <h1 className="text-2xl font-extrabold" style={{ color: 'var(--color-text)' }}>
+              <h1 className="text-3xl font-black text-gradient">
                 day1 へようこそ
               </h1>
-              <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-light)' }}>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
                 noteの記事を「読んだだけ」で終わらせず、<br />
                 あなたの<strong style={{ color: 'var(--color-text)' }}>血肉</strong>にする。<br />
                 それが day1 です。
               </p>
-              <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-light)' }}>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-dim)' }}>
                 まずはあなたのことを教えてください。<br />
                 AIがあなたに合った学びを提案します。
               </p>
             </div>
             <button
               onClick={() => setStep(1)}
-              className="w-full py-4 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] shadow-md"
-              style={{ background: 'var(--color-accent)' }}
+              className="btn-primary w-full"
             >
-              はじめる →
+              はじめる
             </button>
           </>
         )}
 
         {step === 1 && (
           <>
-            {/* Challenge Selection */}
             <header className="text-center space-y-2">
               <h2 className="text-xl font-extrabold" style={{ color: 'var(--color-text)' }}>
                 今、向き合いたいテーマは？
               </h2>
-              <p className="text-xs" style={{ color: 'var(--color-text-light)' }}>
+              <p className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
                 いくつでも選べます（あとで変更可能）
               </p>
             </header>
@@ -120,17 +113,17 @@ export default function OnboardingPage() {
                     onClick={() => toggleChallenge(ch.id)}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl text-center transition-all active:scale-[0.97]"
                     style={{
-                      background: isSelected ? 'var(--color-accent)' : 'var(--color-card)',
-                      border: isSelected ? '2px solid var(--color-accent-dark)' : '1px solid var(--color-border)',
+                      background: isSelected
+                        ? 'linear-gradient(135deg, var(--g-coral), var(--g-peach))'
+                        : 'var(--color-surface)',
+                      border: isSelected ? '1px solid rgba(232, 168, 124, 0.4)' : '1px solid var(--color-border)',
                       color: isSelected ? '#fff' : 'var(--color-text)',
-                      boxShadow: isSelected ? '0 4px 12px rgba(232, 168, 124, 0.3)' : '0 1px 3px rgba(0,0,0,0.05)',
                     }}
                   >
-                    <span className="text-2xl">{ch.emoji}</span>
                     <span className="text-xs font-bold leading-tight">{ch.label}</span>
                     <span
                       className="text-[10px] leading-tight"
-                      style={{ color: isSelected ? 'rgba(255,255,255,0.8)' : 'var(--color-text-light)' }}
+                      style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--color-text-dim)' }}
                     >
                       {ch.description}
                     </span>
@@ -143,17 +136,16 @@ export default function OnboardingPage() {
               <button
                 onClick={handleSave}
                 disabled={selected.length === 0 || saving}
-                className="w-full py-4 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] shadow-md disabled:opacity-40"
-                style={{ background: 'var(--color-accent)' }}
+                className="btn-primary w-full"
               >
-                {saving ? '保存中...' : `${selected.length > 0 ? `${selected.length}つ選択中 — ` : ''}day1をはじめる ☀️`}
+                {saving ? '保存中...' : `${selected.length > 0 ? `${selected.length}つ選択中 — ` : ''}day1をはじめる`}
               </button>
               <button
                 onClick={() => setStep(0)}
                 className="text-xs font-medium"
-                style={{ color: 'var(--color-text-light)' }}
+                style={{ color: 'var(--color-text-dim)' }}
               >
-                ← 戻る
+                戻る
               </button>
             </div>
           </>

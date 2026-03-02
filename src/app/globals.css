@@ -1,18 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --color-cream: #FFF8F0;
-  --color-cream-dark: #F5EDE3;
-  --color-warm-gray: #6B6560;
-  --color-warm-brown: #8B7D6B;
+  /* ─── 新カラーパレット：アート的多色グラデーション ─── */
+  --g-coral: #E8655A;
+  --g-peach: #F2A87C;
+  --g-amber: #E8C547;
+  --g-sage: #7BAE82;
+  --g-teal: #4A9B9E;
+  --g-blue: #5B78C4;
+  --g-violet: #8B6BB5;
+  --g-rose: #C96B8B;
+
+  /* UI Colors */
+  --color-bg: #1A1716;
+  --color-surface: rgba(255, 255, 255, 0.06);
+  --color-surface-raised: rgba(255, 255, 255, 0.10);
+  --color-text: #F0EDE8;
+  --color-text-muted: rgba(240, 237, 232, 0.55);
+  --color-text-dim: rgba(240, 237, 232, 0.35);
+  --color-border: rgba(255, 255, 255, 0.08);
   --color-accent: #E8A87C;
-  --color-accent-dark: #D4946A;
-  --color-text: #3D3530;
-  --color-text-light: #7A716A;
-  --color-border: #E8E0D8;
-  --color-card: #FFFFFF;
-  --color-dawn-start: #4a4a52;
-  --color-dawn-end: #FFF8F0;
+  --color-accent-bright: #F2C49B;
+  --color-danger: #E8655A;
+  --color-success: #7BAE82;
 }
 
 @theme inline {
@@ -25,7 +35,7 @@
 }
 
 body {
-  background: var(--color-cream);
+  background: var(--color-bg);
   color: var(--color-text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans',
     'Hiragino Kaku Gothic ProN', 'Noto Sans JP', Meiryo, sans-serif;
@@ -34,12 +44,197 @@ body {
   -moz-osx-font-smoothing: grayscale;
   word-break: break-word;
   overflow-wrap: break-word;
+  min-height: 100dvh;
 }
 
 ::selection {
-  background: rgba(232, 168, 124, 0.3);
+  background: rgba(232, 168, 124, 0.4);
+  color: #fff;
 }
 
 input, textarea, button {
   font-family: inherit;
+}
+
+/* ─── SVGノイズフィルター (インライン化) ─── */
+.noise-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.noise-bg::before {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  filter: contrast(170%) brightness(1000%);
+  mix-blend-mode: overlay;
+  opacity: 0.12;
+}
+
+/* ─── グレイニーグラデーション背景バリエーション ─── */
+.gradient-main {
+  background:
+    radial-gradient(ellipse at 20% 0%, var(--g-coral) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 10%, var(--g-violet) 0%, transparent 45%),
+    radial-gradient(ellipse at 60% 100%, var(--g-teal) 0%, transparent 50%),
+    radial-gradient(ellipse at 10% 80%, var(--g-amber) 0%, transparent 40%),
+    var(--color-bg);
+}
+
+.gradient-warm {
+  background:
+    radial-gradient(ellipse at 30% 0%, var(--g-coral) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, var(--g-peach) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 90%, var(--g-amber) 0%, transparent 50%),
+    var(--color-bg);
+}
+
+.gradient-cool {
+  background:
+    radial-gradient(ellipse at 20% 10%, var(--g-blue) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 0%, var(--g-teal) 0%, transparent 45%),
+    radial-gradient(ellipse at 40% 100%, var(--g-sage) 0%, transparent 50%),
+    var(--color-bg);
+}
+
+.gradient-sunset {
+  background:
+    radial-gradient(ellipse at 50% 0%, var(--g-rose) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 60%, var(--g-coral) 0%, transparent 45%),
+    radial-gradient(ellipse at 20% 80%, var(--g-amber) 0%, transparent 40%),
+    radial-gradient(ellipse at 60% 100%, var(--g-violet) 0%, transparent 50%),
+    var(--color-bg);
+}
+
+/* ─── グラスモーフィズムカード ─── */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.card-raised {
+  background: var(--color-surface-raised);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ─── ボタン ─── */
+.btn-primary {
+  background: linear-gradient(135deg, var(--g-coral), var(--g-peach));
+  color: #fff;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 24px;
+  font-size: 14px;
+  transition: all 0.2s;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn-ghost {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-size: 13px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.btn-ghost:active {
+  transform: scale(0.97);
+  background: var(--color-surface-raised);
+}
+
+/* ─── 入力 ─── */
+.input-field {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+.input-field::placeholder {
+  color: var(--color-text-dim);
+}
+
+.input-field:focus {
+  border-color: rgba(232, 168, 124, 0.5);
+}
+
+/* ─── タグ / バッジ ─── */
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-do {
+  background: rgba(91, 120, 196, 0.15);
+  color: #7B9BE0;
+}
+
+.badge-be {
+  background: rgba(139, 107, 181, 0.15);
+  color: #B08DE0;
+}
+
+/* ─── テキストグラデーション ─── */
+.text-gradient {
+  background: linear-gradient(135deg, var(--g-peach), var(--g-coral), var(--g-rose));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── コンテンツラッパー（ノイズの上に配置） ─── */
+.content-layer {
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── スクロールバー ─── */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
 }

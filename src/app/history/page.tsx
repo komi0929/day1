@@ -7,29 +7,22 @@ import { supabase } from '@/lib/supabase';
 
 interface HistorySession {
   id: string;
-  article_type: 'DO' | 'BE' | null;
+  article_type: string | null;
   ai_summary: string;
-  user_commitment: string;
-  user_emotion_tags: string[];
-  user_reflection: string;
-  check_in_status: string;
+  user_commitment: string | null;
+  user_emotion_tags: string[] | null;
+  user_reflection: string | null;
+  check_in_status: string | null;
   completed_at: string;
-  bookmarks: {
-    url: string;
-    title: string;
-  } | null;
+  bookmark_id: string | null;
+  memo_action: string | null;
+  bookmarks: { url: string; title: string } | null;
 }
 
 export default function HistoryPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [sessions, setSessions] = useState<HistorySession[]>([]);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace('/login');
-    }
-  }, [user, authLoading, router]);
 
   const loadData = useCallback(async () => {
     if (!supabase || !user) return;
@@ -63,33 +56,42 @@ export default function HistoryPage() {
     }
   }, [user, loadData]);
 
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return `${d.getMonth() + 1}/${d.getDate()}`;
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/login');
+    }
+  }, [user, authLoading, router]);
+
+  const formatDate = (date: string) => {
+    const d = new Date(date);
+    return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
   };
 
-  return (
-    <main className="min-h-dvh flex flex-col" style={{ background: 'var(--color-cream)' }}>
+  if (authLoading || !user) {
+    return (
+      <main className="min-h-dvh flex items-center justify-center gradient-main">
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>読み込み中...</p>
+      </main>
+    );
+  }
 
-      {/* Header */}
-      <header className="px-5 pt-6 pb-4 flex items-center gap-3">
+  return (
+    <main className="min-h-dvh flex flex-col gradient-cool">
+      <header className="px-5 pt-6 pb-4 flex justify-between items-center">
+        <h1 className="text-xl font-black" style={{ color: 'var(--color-text)' }}>学習履歴</h1>
         <button
           onClick={() => router.push('/dashboard')}
-          className="text-sm"
-          style={{ color: 'var(--color-accent-dark)' }}
+          className="btn-ghost text-xs"
         >
-          ← 戻る
+          戻る
         </button>
-        <h1 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>学習履歴</h1>
       </header>
 
-      {/* List */}
-      <section className="flex-1 px-5 pb-8">
+      <section className="flex-1 px-5 pb-8 overflow-y-auto">
         {sessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <span className="text-4xl">🌅</span>
-            <p className="text-sm font-medium" style={{ color: 'var(--color-text-light)' }}>
-              まだ学習履歴がありません。
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-dim)' }}>
+              まだ学習履歴がありません
             </p>
           </div>
         ) : (
@@ -97,41 +99,31 @@ export default function HistoryPage() {
             {sessions.map((session) => (
               <li
                 key={session.id}
-                className="p-4 rounded-xl shadow-sm"
-                style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)' }}
+                className="card p-4"
               >
                 {/* Header row */}
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-2">
                     {session.article_type ? (
-                    <span
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{
-                        background: session.article_type === 'DO' ? 'rgba(59,130,246,0.1)' : 'rgba(168,85,247,0.1)',
-                        color: session.article_type === 'DO' ? '#3B82F6' : '#A855F7',
-                      }}
-                    >
-                      {session.article_type === 'DO' ? '🔧 DO' : '🌿 BE'}
+                    <span className={`badge ${session.article_type === 'DO' ? 'badge-do' : 'badge-be'}`}>
+                      {session.article_type}
                     </span>
                     ) : (
-                    <span
-                      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: 'rgba(120,120,120,0.1)', color: '#888' }}
-                    >
-                      📝 旧版
+                    <span className="badge" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--color-text-dim)' }}>
+                      旧版
                     </span>
                     )}
-                    <span className="text-[10px]" style={{ color: 'var(--color-text-light)' }}>
+                    <span className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>
                       {formatDate(session.completed_at)}
                     </span>
                   </div>
                   {session.article_type === 'DO' && (
                     <span className="text-[10px] font-medium" style={{
-                      color: session.check_in_status === 'completed' ? '#34D399' :
-                        session.check_in_status === 'skipped' ? '#F87171' : 'var(--color-text-light)'
+                      color: session.check_in_status === 'completed' ? 'var(--g-sage)' :
+                        session.check_in_status === 'skipped' ? 'var(--g-coral)' : 'var(--color-text-dim)'
                     }}>
-                      {session.check_in_status === 'completed' ? '✅ 達成' :
-                        session.check_in_status === 'skipped' ? '⏭️ スキップ' : '⏳ チェックイン待ち'}
+                      {session.check_in_status === 'completed' ? '達成' :
+                        session.check_in_status === 'skipped' ? 'スキップ' : 'チェックイン待ち'}
                     </span>
                   )}
                 </div>
@@ -143,8 +135,8 @@ export default function HistoryPage() {
 
                 {/* DO: commitment */}
                 {session.article_type === 'DO' && session.user_commitment && (
-                  <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--color-text-light)' }}>
-                    💡 {session.user_commitment}
+                  <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--color-text-muted)' }}>
+                    {session.user_commitment}
                   </p>
                 )}
 
@@ -152,14 +144,14 @@ export default function HistoryPage() {
                 {session.article_type === 'BE' && (
                   <div className="flex flex-col gap-1">
                     {session.user_emotion_tags && session.user_emotion_tags.length > 0 && (
-                      <div className="flex gap-1">
-                        {session.user_emotion_tags.map((emoji, i) => (
-                          <span key={i} className="text-lg">{emoji}</span>
+                      <div className="flex gap-1 flex-wrap">
+                        {session.user_emotion_tags.map((tag, i) => (
+                          <span key={i} className="badge badge-be text-[9px]">{tag}</span>
                         ))}
                       </div>
                     )}
                     {session.user_reflection && (
-                      <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--color-text-light)' }}>
+                      <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--color-text-muted)' }}>
                         {session.user_reflection}
                       </p>
                     )}
@@ -170,7 +162,6 @@ export default function HistoryPage() {
           </ul>
         )}
       </section>
-
     </main>
   );
 }

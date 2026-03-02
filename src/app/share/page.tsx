@@ -1,67 +1,54 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
-import { Suspense } from 'react';
 
 function ShareContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
-  const [status, setStatus] = useState<'receiving' | 'saved' | 'error'>('receiving');
-  const [sharedUrl, setSharedUrl] = useState('');
+  const searchParams = useSearchParams();
+  const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
 
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (authLoading) return;
+    if (!user) {
       router.replace('/login');
       return;
     }
-    if (authLoading || !user || !supabase) return;
+
+    const sharedUrl = searchParams.get('url') || searchParams.get('text') || '';
+
+    const noteUrlMatch = sharedUrl.match(/https?:\/\/note\.com\/[^\s]+/);
+    if (!noteUrlMatch) {
+      setStatus('error');
+      return;
+    }
 
     const processShare = async () => {
-      // Extract URL from share params
-      const urlParam = searchParams.get('url') || '';
-      const textParam = searchParams.get('text') || '';
-      const titleParam = searchParams.get('title') || '';
-
-      // Try to find a note.com URL from the params
-      let noteUrl = '';
-      if (urlParam && urlParam.includes('note.com')) {
-        noteUrl = urlParam;
-      } else if (textParam) {
-        // Sometimes the URL is in the text param
-        const urlMatch = textParam.match(/https?:\/\/note\.com\/[^\s]+/);
-        if (urlMatch) noteUrl = urlMatch[0];
-      }
-
-      if (!noteUrl) {
+      if (!supabase) {
         setStatus('error');
         return;
       }
 
-      setSharedUrl(noteUrl);
-
       try {
-        // Fetch OGP metadata
-        let title = titleParam || noteUrl.split('/').pop()?.replace(/-/g, ' ') || 'Untitled';
+        let title = noteUrlMatch[0].split('/').pop()?.replace(/-/g, ' ') || 'Untitled';
         let imageUrl: string | null = null;
 
         try {
           const ogpRes = await fetch('/api/ogp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: noteUrl }),
+            body: JSON.stringify({ url: noteUrlMatch[0] }),
           });
           const ogpData = await ogpRes.json();
           if (ogpData.title) title = ogpData.title;
           if (ogpData.image) imageUrl = ogpData.image;
         } catch {
-          // OGP failed, use fallback
+          // OGP fetch failed
         }
 
-        // Save to bookmarks
         if (!supabase) {
           setStatus('error');
           return;
@@ -70,12 +57,11 @@ function ShareContent() {
           .from('bookmarks')
           .insert({
             user_id: user.id,
-            url: noteUrl,
+            url: noteUrlMatch[0],
             title,
             image_url: imageUrl,
             status: 'unread',
             ai_processing_status: 'pending',
-            shared_at: new Date().toISOString(),
           });
 
         if (insertError) {
@@ -83,7 +69,8 @@ function ShareContent() {
           return;
         }
 
-        setStatus('saved');
+        setStatus('success');
+        setTimeout(() => router.push('/dashboard'), 2000);
       } catch {
         setStatus('error');
       }
@@ -92,70 +79,39 @@ function ShareContent() {
     processShare();
   }, [user, authLoading, searchParams, router]);
 
-  if (authLoading) {
-    return (
-      <main className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
-        <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>
-      </main>
-    );
-  }
-
   return (
-    <main className="min-h-dvh flex flex-col items-center justify-center p-6" style={{ background: 'var(--color-cream)' }}>
-      <div className="w-full max-w-sm flex flex-col items-center gap-6">
-
-        {status === 'receiving' && (
+    <main className="min-h-dvh flex flex-col items-center justify-center p-6 gradient-warm">
+      <div className="w-full max-w-sm flex flex-col items-center gap-6 text-center">
+        {status === 'processing' && (
           <>
-            <div className="text-5xl animate-pulse">📥</div>
-            <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
-              記事を受け取っています...
+            <div className="text-3xl font-black text-gradient">保存中</div>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              記事を保存しています...
             </p>
           </>
         )}
-
-        {status === 'saved' && (
+        {status === 'success' && (
           <>
-            <div className="text-5xl">✅</div>
-            <div className="text-center space-y-2">
-              <h2 className="text-xl font-bold" style={{ color: 'var(--color-text)' }}>
-                保存しました！
-              </h2>
-              <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-light)' }}>
-                {sharedUrl && <span className="block truncate">{sharedUrl}</span>}
-                ダッシュボードから学習を開始できます。
-              </p>
-            </div>
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="w-full py-4 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] shadow-md"
-              style={{ background: 'var(--color-accent)' }}
-            >
-              ダッシュボードへ ☀️
-            </button>
+            <div className="text-3xl font-black text-gradient">保存完了</div>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              ダッシュボードに追加しました
+            </p>
           </>
         )}
-
         {status === 'error' && (
           <>
-            <div className="text-5xl">😅</div>
-            <div className="text-center space-y-2">
-              <h2 className="text-xl font-bold" style={{ color: 'var(--color-text)' }}>
-                保存できませんでした
-              </h2>
-              <p className="text-xs" style={{ color: 'var(--color-text-light)' }}>
-                note.comの記事URLのみ対応しています。
-              </p>
-            </div>
+            <div className="text-3xl font-black" style={{ color: 'var(--g-coral)' }}>エラー</div>
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+              記事の保存に失敗しました
+            </p>
             <button
               onClick={() => router.push('/dashboard')}
-              className="w-full py-3 rounded-xl font-semibold text-sm transition-all active:scale-[0.98]"
-              style={{ background: 'var(--color-cream-dark)', color: 'var(--color-text)' }}
+              className="btn-primary"
             >
-              ダッシュボードへ戻る
+              ダッシュボードへ
             </button>
           </>
         )}
-
       </div>
     </main>
   );
@@ -164,8 +120,8 @@ function ShareContent() {
 export default function SharePage() {
   return (
     <Suspense fallback={
-      <main className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
-        <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>
+      <main className="min-h-dvh flex items-center justify-center gradient-warm">
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>読み込み中...</p>
       </main>
     }>
       <ShareContent />

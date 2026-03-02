@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "day1",
   },
   openGraph: {
@@ -42,7 +42,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#FFF8F0",
+  themeColor: "#1A1716",
 };
 
 export default function RootLayout({
@@ -58,9 +58,15 @@ export default function RootLayout({
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-dvh`}
-        style={{ background: "var(--color-cream)" }}
       >
-        <AuthProvider>{children}</AuthProvider>
+        {/* Grainy noise overlay — fixed, covers entire viewport */}
+        <div className="noise-bg" aria-hidden="true" />
+
+        <AuthProvider>
+          <div className="content-layer">
+            {children}
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );

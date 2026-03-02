@@ -26,10 +26,10 @@ export default function Home() {
   }, [user, profile, loading, router]);
 
   return (
-    <main className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
+    <main className="min-h-dvh flex items-center justify-center gradient-main">
       <div className="flex flex-col items-center gap-3">
-        <h1 className="text-3xl font-extrabold" style={{ color: 'var(--color-text)' }}>day1</h1>
-        <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>
+        <h1 className="text-3xl font-black text-gradient">day1</h1>
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>読み込み中...</p>
       </div>
     </main>
   );

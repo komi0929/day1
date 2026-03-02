@@ -13,7 +13,6 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Redirect if already logged in
   useEffect(() => {
     if (!loading && user) {
       router.replace('/dashboard');
@@ -31,9 +30,7 @@ export default function LoginPage() {
         : await signIn(email, password);
 
       if (result.error) {
-        // メアド列挙防止: Supabaseエラーを一般化
         if (isSignUp) {
-          // 登録成功でも失敗でも同じメッセージ
           setError('確認メールを送信しました。メールを確認してください。');
         } else {
           setError('メールアドレスまたはパスワードが正しくありません。');
@@ -58,35 +55,32 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <main className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
-        <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>
+      <main className="min-h-dvh flex items-center justify-center gradient-main">
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>読み込み中...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-dvh flex flex-col items-center justify-center p-6" style={{ background: 'var(--color-cream)' }}>
+    <main className="min-h-dvh flex flex-col items-center justify-center p-6 gradient-sunset">
       <div className="w-full max-w-sm flex flex-col gap-8">
 
         {/* Logo */}
-        <header className="text-center space-y-2">
-          <h1 className="text-4xl font-extrabold tracking-tight" style={{ color: 'var(--color-text)' }}>
+        <header className="text-center space-y-3">
+          <h1 className="text-5xl font-black tracking-tighter text-gradient">
             day1
           </h1>
-          <p className="text-sm font-medium" style={{ color: 'var(--color-text-light)' }}>
-            今日の朝を、学びではじめよう ☀️
+          <p className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>
+            今日の朝を、学びではじめよう
           </p>
         </header>
 
         {/* Google Login */}
         <button
           onClick={handleGoogleLogin}
-          className="w-full py-3.5 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-sm"
-          style={{
-            background: 'var(--color-card)',
-            border: '1px solid var(--color-border)',
-            color: 'var(--color-text)',
-          }}
+          aria-label="Googleでログイン"
+          className="card w-full py-3.5 px-4 font-semibold text-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
+          style={{ color: 'var(--color-text)' }}
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -99,14 +93,14 @@ export default function LoginPage() {
 
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }}></div>
-          <span className="text-xs font-medium" style={{ color: 'var(--color-text-light)' }}>または</span>
+          <span className="text-xs font-medium" style={{ color: 'var(--color-text-dim)' }}>or</span>
           <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }}></div>
         </div>
 
         {/* Email Login */}
         <form onSubmit={handleEmailLogin} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="login-email" className="text-xs font-semibold" style={{ color: 'var(--color-text-light)' }}>
+            <label htmlFor="login-email" className="text-xs font-semibold" style={{ color: 'var(--color-text-muted)' }}>
               メールアドレス
             </label>
             <input
@@ -116,17 +110,12 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
-              style={{
-                background: 'var(--color-card)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text)',
-              }}
+              className="input-field"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="login-password" className="text-xs font-semibold" style={{ color: 'var(--color-text-light)' }}>
+            <label htmlFor="login-password" className="text-xs font-semibold" style={{ color: 'var(--color-text-muted)' }}>
               パスワード
             </label>
             <input
@@ -137,17 +126,12 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
-              style={{
-                background: 'var(--color-card)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text)',
-              }}
+              className="input-field"
             />
           </div>
 
           {error && (
-            <div className="p-3 text-xs rounded-lg" style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+            <div className="p-3 text-xs rounded-lg" style={{ background: 'rgba(232, 101, 90, 0.12)', color: 'var(--g-coral)', border: '1px solid rgba(232, 101, 90, 0.2)' }}>
               {error}
             </div>
           )}
@@ -155,20 +139,19 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-50 shadow-md"
-            style={{ background: 'var(--color-accent)' }}
+            className="btn-primary w-full"
           >
             {submitting ? '処理中...' : isSignUp ? '新規登録' : 'ログイン'}
           </button>
         </form>
 
-        <p className="text-center text-xs" style={{ color: 'var(--color-text-light)' }}>
+        <p className="text-center text-xs" style={{ color: 'var(--color-text-muted)' }}>
           {isSignUp ? 'すでにアカウントをお持ちですか？' : 'はじめての方はこちら'}
           <button
             type="button"
             onClick={() => { setIsSignUp(!isSignUp); setError(null); }}
             className="ml-1 font-semibold underline"
-            style={{ color: 'var(--color-accent-dark)' }}
+            style={{ color: 'var(--color-accent)' }}
           >
             {isSignUp ? 'ログイン' : '新規登録'}
           </button>
