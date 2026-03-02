@@ -2,31 +2,55 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
+
+interface CompleteData {
+  streak: number;
+  title: string;
+  memos: { action: string; question: string; learning: string };
+}
 
 export default function CompletePage() {
   const router = useRouter();
-  const [streak, setStreak] = useState(1);
-  const [title, setTitle] = useState('');
+  const { user, loading: authLoading } = useAuth();
+  const [completeData, setCompleteData] = useState<CompleteData | null>(null);
 
   useEffect(() => {
-    const s = parseInt(localStorage.getItem('day1_streak') || '1', 10);
-    setStreak(s);
-    const t = localStorage.getItem('day1_last_title') || '';
-    setTitle(t);
-  }, []);
+    if (!authLoading && !user) {
+      router.replace('/login');
+      return;
+    }
+
+    const saved = sessionStorage.getItem('day1_complete_data');
+    if (saved) {
+      setCompleteData(JSON.parse(saved));
+    } else {
+      // Fallback: show with default values
+      setCompleteData({ streak: 1, title: '', memos: { action: '', question: '', learning: '' } });
+    }
+  }, [user, authLoading, router]);
 
   const handleShare = () => {
-    const memoRaw = localStorage.getItem('day1_last_memo');
-    const memos = memoRaw ? JSON.parse(memoRaw) : {};
+    if (!completeData) return;
 
     let text = `#day1 で今日の学びを自分のものにしました ☀️\n\n`;
-    if (title) text += `📖 ${title}\n\n`;
-    if (memos.action) text += `💡 ${memos.action.slice(0, 60)}${memos.action.length > 60 ? '...' : ''}\n\n`;
-    text += `🔥 ${streak}日連続達成！\n`;
+    if (completeData.title) text += `📖 ${completeData.title}\n\n`;
+    if (completeData.memos.action) {
+      text += `💡 ${completeData.memos.action.slice(0, 60)}${completeData.memos.action.length > 60 ? '...' : ''}\n\n`;
+    }
+    text += `🔥 ${completeData.streak}日連続達成！\n`;
 
     const shareUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
     window.open(shareUrl, '_blank');
   };
+
+  if (!completeData || authLoading) {
+    return (
+      <main className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-dvh flex flex-col items-center justify-center p-6" style={{ background: 'var(--color-cream)' }}>
@@ -52,7 +76,7 @@ export default function CompletePage() {
             連続達成
           </span>
           <span className="text-4xl font-black tabular-nums" style={{ color: 'var(--color-text)' }}>
-            {streak} <span className="text-xl font-medium" style={{ color: 'var(--color-text-light)' }}>日</span>
+            {completeData.streak} <span className="text-xl font-medium" style={{ color: 'var(--color-text-light)' }}>日</span>
           </span>
         </div>
 

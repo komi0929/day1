@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
+import { supabase } from '@/lib/supabase';
 
-interface Bookmark {
+interface HistoryItem {
   id: string;
   url: string;
   title: string;
@@ -13,24 +15,34 @@ interface Bookmark {
 
 export default function HistoryPage() {
   const router = useRouter();
-  const [doneItems, setDoneItems] = useState<Bookmark[]>([]);
-
-  const loadData = useCallback(() => {
-    const loggedIn = localStorage.getItem('day1_logged_in');
-    if (loggedIn !== 'true') {
-      router.replace('/login');
-      return;
-    }
-    const saved = localStorage.getItem('day1_bookmarks');
-    if (saved) {
-      const all: Bookmark[] = JSON.parse(saved);
-      setDoneItems(all.filter(b => b.status === 'done'));
-    }
-  }, [router]);
+  const { user, loading: authLoading } = useAuth();
+  const [doneItems, setDoneItems] = useState<HistoryItem[]>([]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (!authLoading && !user) {
+      router.replace('/login');
+    }
+  }, [user, authLoading, router]);
+
+  const loadData = useCallback(async () => {
+    if (!supabase || !user) return;
+    const { data, error } = await supabase
+      .from('bookmarks')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('status', 'done')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setDoneItems(data as HistoryItem[]);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadData();
+    }
+  }, [user, loadData]);
 
   return (
     <main className="min-h-dvh flex flex-col" style={{ background: 'var(--color-cream)' }}>

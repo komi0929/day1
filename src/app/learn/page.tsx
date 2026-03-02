@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
+import { supabase } from '@/lib/supabase';
 
 interface LearnData {
   bookmarkId: string;
@@ -13,6 +15,7 @@ interface LearnData {
 
 export default function LearnPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<LearnData | null>(null);
   const [step, setStep] = useState(0); // 0=summary, 1=points, 2=memo
   const [timeLeft, setTimeLeft] = useState(300);
@@ -21,9 +24,16 @@ export default function LearnPage() {
   const [isCompleting, setIsCompleting] = useState(false);
   const bgRef = useRef<HTMLDivElement>(null);
 
-  // Load learning data
+  // Auth check
   useEffect(() => {
-    const saved = localStorage.getItem('day1_current_learn');
+    if (!authLoading && !user) {
+      router.replace('/login');
+    }
+  }, [user, authLoading, router]);
+
+  // Load learning data from sessionStorage
+  useEffect(() => {
+    const saved = sessionStorage.getItem('day1_current_learn');
     if (!saved) {
       router.replace('/dashboard');
       return;
@@ -40,16 +50,13 @@ export default function LearnPage() {
 
   // Background gradient calculation
   const getBackgroundColor = useCallback((t: number) => {
-    // t goes from 300 → 0, progress goes from 0 → 1
     const progress = Math.min(1, Math.max(0, (300 - t) / 300));
-    // Dawn start: #4a4a52 (74,74,82) → Dawn end: #FFF8F0 (255,248,240)
     const r = Math.round(74 + (255 - 74) * progress);
     const g = Math.round(74 + (248 - 74) * progress);
     const b = Math.round(82 + (240 - 82) * progress);
     return `rgb(${r}, ${g}, ${b})`;
   }, []);
 
-  // Text color: light when dark bg, dark when light bg
   const getTextColor = useCallback((t: number) => {
     const progress = (300 - t) / 300;
     return progress > 0.5 ? 'var(--color-text)' : '#F5F0EB';
@@ -70,8 +77,9 @@ export default function LearnPage() {
     return progress > 0.5 ? '1px solid var(--color-border)' : '1px solid rgba(255,255,255,0.15)';
   }, []);
 
-  // Handle completion with fast-forward animation
-  const handleComplete = () => {
+  // Handle completion — save to Supabase
+  const handleComplete = async () => {
+    if (!data || !supabase || !user) return;
     setIsCompleting(true);
 
     // Apply fast-forward CSS transition
@@ -80,35 +88,67 @@ export default function LearnPage() {
       bgRef.current.style.backgroundColor = '#FFF8F0';
     }
 
-    // Save completion data
-    const bookmarksRaw = localStorage.getItem('day1_bookmarks');
-    if (bookmarksRaw && data) {
-      const bookmarks = JSON.parse(bookmarksRaw);
-      const updated = bookmarks.map((b: { id: string; status: string }) =>
-        b.id === data.bookmarkId ? { ...b, status: 'done' } : b
-      );
-      localStorage.setItem('day1_bookmarks', JSON.stringify(updated));
+    // 1. Mark bookmark as done
+    await supabase
+      .from('bookmarks')
+      .update({ status: 'done' })
+      .eq('id', data.bookmarkId)
+      .eq('user_id', user.id);
+
+    // 2. Save learning session
+    await supabase
+      .from('learning_sessions')
+      .insert({
+        user_id: user.id,
+        bookmark_id: data.bookmarkId,
+        memo_action: memos.action,
+        memo_question: memos.question,
+        memo_learning: memos.learning,
+        ai_summary: data.summary,
+        ai_points: data.points,
+      });
+
+    // 3. Update streak in profile
+    const today = new Date().toISOString().split('T')[0];
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('streak, last_completed_at')
+      .eq('id', user.id)
+      .single();
+
+    let newStreak = 1;
+    if (profile) {
+      const lastDate = profile.last_completed_at
+        ? new Date(profile.last_completed_at).toISOString().split('T')[0]
+        : null;
+
+      if (lastDate) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+        if (lastDate === yesterdayStr) {
+          newStreak = (profile.streak ?? 0) + 1;
+        } else if (lastDate === today) {
+          newStreak = profile.streak ?? 1;
+        }
+      }
     }
 
-    // Streak logic
-    const today = new Date().toDateString();
-    const lastComplete = localStorage.getItem('day1_last_complete');
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    let streak = parseInt(localStorage.getItem('day1_streak') || '0', 10);
+    await supabase
+      .from('profiles')
+      .update({ streak: newStreak, last_completed_at: new Date().toISOString() })
+      .eq('id', user.id);
 
-    if (lastComplete === yesterday.toDateString()) {
-      streak += 1;
-    } else if (lastComplete !== today) {
-      streak = 1;
-    }
+    // Store completion info in sessionStorage for the complete page
+    sessionStorage.setItem('day1_complete_data', JSON.stringify({
+      streak: newStreak,
+      title: data.title,
+      memos,
+    }));
 
-    localStorage.setItem('day1_streak', streak.toString());
-    localStorage.setItem('day1_last_complete', today);
-
-    // Store memo for share page
-    localStorage.setItem('day1_last_memo', JSON.stringify(memos));
-    localStorage.setItem('day1_last_title', data?.title || '');
+    // Clear current learn data
+    sessionStorage.removeItem('day1_current_learn');
 
     // Wait for animation then navigate
     setTimeout(() => {
@@ -116,7 +156,7 @@ export default function LearnPage() {
     }, 1700);
   };
 
-  if (!data) {
+  if (!data || authLoading) {
     return (
       <div className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
         <p style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>

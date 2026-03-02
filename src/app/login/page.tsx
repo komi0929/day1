@@ -1,48 +1,63 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { user, loading, signIn, signUp, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace('/dashboard');
+    }
+  }, [user, loading, router]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
     setError(null);
 
-    // Mock auth — store user in localStorage
     try {
-      if (isSignUp) {
-        localStorage.setItem('day1_user', JSON.stringify({ email, name: email.split('@')[0] }));
-      } else {
-        const saved = localStorage.getItem('day1_user');
-        if (!saved) {
-          setError('アカウントが見つかりません。新規登録してください。');
-          setLoading(false);
-          return;
-        }
+      const result = isSignUp
+        ? await signUp(email, password)
+        : await signIn(email, password);
+
+      if (result.error) {
+        setError(result.error);
+      } else if (isSignUp) {
+        setError(null);
+        // Show confirmation message for sign up
+        setError('確認メールを送信しました。メールを確認してください。');
       }
-      localStorage.setItem('day1_logged_in', 'true');
-      router.push('/dashboard');
     } catch {
       setError('ログインに失敗しました。');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    // Mock Google login
-    localStorage.setItem('day1_user', JSON.stringify({ email: 'user@gmail.com', name: 'Google User' }));
-    localStorage.setItem('day1_logged_in', 'true');
-    router.push('/dashboard');
+  const handleGoogleLogin = async () => {
+    const result = await signInWithGoogle();
+    if (result.error) {
+      setError(result.error);
+    }
   };
+
+  if (loading) {
+    return (
+      <main className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-dvh flex flex-col items-center justify-center p-6" style={{ background: 'var(--color-cream)' }}>
@@ -113,6 +128,7 @@ export default function LoginPage() {
               id="login-password"
               type="password"
               required
+              minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -133,11 +149,11 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={submitting}
             className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-50 shadow-md"
             style={{ background: 'var(--color-accent)' }}
           >
-            {loading ? '処理中...' : isSignUp ? '新規登録' : 'ログイン'}
+            {submitting ? '処理中...' : isSignUp ? '新規登録' : 'ログイン'}
           </button>
         </form>
 

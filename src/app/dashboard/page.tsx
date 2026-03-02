@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
+import { supabase } from '@/lib/supabase';
 
 interface Bookmark {
   id: string;
@@ -13,53 +15,84 @@ interface Bookmark {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user, loading: authLoading, signOut } = useAuth();
   const [url, setUrl] = useState('');
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [activeTab, setActiveTab] = useState<'unread' | 'done'>('unread');
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [streak, setStreak] = useState(0);
 
-  const loadBookmarks = useCallback(() => {
-    const saved = localStorage.getItem('day1_bookmarks');
-    if (saved) {
-      setBookmarks(JSON.parse(saved));
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/login');
     }
-  }, []);
+  }, [user, authLoading, router]);
+
+  // Load bookmarks from Supabase
+  const loadBookmarks = useCallback(async () => {
+    if (!supabase || !user) return;
+    const { data, error } = await supabase
+      .from('bookmarks')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setBookmarks(data as Bookmark[]);
+    }
+  }, [user]);
+
+  // Load streak from profile
+  const loadStreak = useCallback(async () => {
+    if (!supabase || !user) return;
+    const { data } = await supabase
+      .from('profiles')
+      .select('streak')
+      .eq('id', user.id)
+      .single();
+
+    if (data) {
+      setStreak(data.streak ?? 0);
+    }
+  }, [user]);
 
   useEffect(() => {
-    const loggedIn = localStorage.getItem('day1_logged_in');
-    if (loggedIn !== 'true') {
-      router.replace('/login');
-      return;
+    if (user) {
+      loadBookmarks();
+      loadStreak();
     }
-    loadBookmarks();
-  }, [router, loadBookmarks]);
+  }, [user, loadBookmarks, loadStreak]);
 
-  const saveBookmarks = (bms: Bookmark[]) => {
-    localStorage.setItem('day1_bookmarks', JSON.stringify(bms));
-    setBookmarks(bms);
-  };
-
-  const handleAddUrl = (e: React.FormEvent) => {
+  const handleAddUrl = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim()) return;
+    if (!url.trim() || !supabase || !user) return;
 
     if (!url.includes('note.com')) {
       setError('現在、noteの記事URLのみ対応しています。');
       return;
     }
 
-    const newBookmark: Bookmark = {
-      id: Date.now().toString(),
-      url: url.trim(),
-      title: url.split('/').pop()?.replace(/-/g, ' ') || 'Untitled',
-      status: 'unread',
-      created_at: new Date().toISOString(),
-    };
+    const title = url.split('/').pop()?.replace(/-/g, ' ') || 'Untitled';
 
-    saveBookmarks([newBookmark, ...bookmarks]);
+    const { error: insertError } = await supabase
+      .from('bookmarks')
+      .insert({
+        user_id: user.id,
+        url: url.trim(),
+        title,
+        status: 'unread',
+      });
+
+    if (insertError) {
+      setError('ブックマークの追加に失敗しました。');
+      return;
+    }
+
     setUrl('');
     setError(null);
+    loadBookmarks();
   };
 
   const handleSelectArticle = async (bookmark: Bookmark) => {
@@ -78,8 +111,8 @@ export default function DashboardPage() {
         return;
       }
 
-      // Store learning data for the learn page
-      localStorage.setItem('day1_current_learn', JSON.stringify({
+      // Store learning data for the learn page (temporary, used during session)
+      sessionStorage.setItem('day1_current_learn', JSON.stringify({
         bookmarkId: bookmark.id,
         url: bookmark.url,
         title: bookmark.title,
@@ -95,8 +128,8 @@ export default function DashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('day1_logged_in');
+  const handleLogout = async () => {
+    await signOut();
     router.push('/login');
   };
 
@@ -104,12 +137,13 @@ export default function DashboardPage() {
   const done = bookmarks.filter(b => b.status === 'done');
   const currentList = activeTab === 'unread' ? unread : done;
 
-  const [streak, setStreak] = useState(0);
-
-  useEffect(() => {
-    const s = parseInt(localStorage.getItem('day1_streak') || '0', 10);
-    setStreak(s);
-  }, []);
+  if (authLoading || !user) {
+    return (
+      <main className="min-h-dvh flex items-center justify-center" style={{ background: 'var(--color-cream)' }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-light)' }}>読み込み中...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-dvh flex flex-col" style={{ background: 'var(--color-cream)' }}>
