@@ -9,6 +9,7 @@ interface Bookmark {
   id: string;
   url: string;
   title: string;
+  image_url: string | null;
   status: 'unread' | 'done';
   created_at: string;
 }
@@ -20,17 +21,16 @@ export default function DashboardPage() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [activeTab, setActiveTab] = useState<'unread' | 'done'>('unread');
   const [loading, setLoading] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace('/login');
     }
   }, [user, authLoading, router]);
 
-  // Load bookmarks from Supabase
   const loadBookmarks = useCallback(async () => {
     if (!supabase || !user) return;
     const { data, error } = await supabase
@@ -44,7 +44,6 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  // Load streak from profile
   const loadStreak = useCallback(async () => {
     if (!supabase || !user) return;
     const { data } = await supabase
@@ -74,25 +73,48 @@ export default function DashboardPage() {
       return;
     }
 
-    const title = url.split('/').pop()?.replace(/-/g, ' ') || 'Untitled';
-
-    const { error: insertError } = await supabase
-      .from('bookmarks')
-      .insert({
-        user_id: user.id,
-        url: url.trim(),
-        title,
-        status: 'unread',
-      });
-
-    if (insertError) {
-      setError('ブックマークの追加に失敗しました。');
-      return;
-    }
-
-    setUrl('');
+    setAdding(true);
     setError(null);
-    loadBookmarks();
+
+    try {
+      // Fetch OGP metadata
+      let title = url.split('/').pop()?.replace(/-/g, ' ') || 'Untitled';
+      let imageUrl: string | null = null;
+
+      try {
+        const ogpRes = await fetch('/api/ogp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url.trim() }),
+        });
+        const ogpData = await ogpRes.json();
+        if (ogpData.title) title = ogpData.title;
+        if (ogpData.image) imageUrl = ogpData.image;
+      } catch {
+        // OGP fetch failed, use fallback title
+      }
+
+      const { error: insertError } = await supabase
+        .from('bookmarks')
+        .insert({
+          user_id: user.id,
+          url: url.trim(),
+          title,
+          image_url: imageUrl,
+          status: 'unread',
+        });
+
+      if (insertError) {
+        setError('ブックマークの追加に失敗しました。');
+        return;
+      }
+
+      setUrl('');
+      setError(null);
+      loadBookmarks();
+    } finally {
+      setAdding(false);
+    }
   };
 
   const handleSelectArticle = async (bookmark: Bookmark) => {
@@ -111,7 +133,6 @@ export default function DashboardPage() {
         return;
       }
 
-      // Store learning data for the learn page (temporary, used during session)
       sessionStorage.setItem('day1_current_learn', JSON.stringify({
         bookmarkId: bookmark.id,
         url: bookmark.url,
@@ -182,10 +203,11 @@ export default function DashboardPage() {
           />
           <button
             type="submit"
-            className="px-4 py-3 rounded-xl text-sm font-bold text-white transition-all active:scale-95 shrink-0"
+            disabled={adding}
+            className="px-4 py-3 rounded-xl text-sm font-bold text-white transition-all active:scale-95 shrink-0 disabled:opacity-50"
             style={{ background: 'var(--color-accent)' }}
           >
-            追加
+            {adding ? '取得中...' : '追加'}
           </button>
         </form>
         {error && (
@@ -233,7 +255,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => activeTab === 'unread' ? handleSelectArticle(bm) : undefined}
                   disabled={loading === bm.id || activeTab === 'done'}
-                  className="w-full text-left p-4 rounded-xl transition-all active:scale-[0.98] shadow-sm"
+                  className="w-full text-left rounded-xl transition-all active:scale-[0.98] shadow-sm overflow-hidden"
                   style={{
                     background: 'var(--color-card)',
                     border: '1px solid var(--color-border)',
@@ -241,20 +263,33 @@ export default function DashboardPage() {
                     cursor: activeTab === 'done' ? 'default' : 'pointer',
                   }}
                 >
-                  <p className="text-sm font-semibold truncate" style={{ color: 'var(--color-text)' }}>
-                    {bm.title}
-                  </p>
-                  <p className="text-xs mt-1 truncate" style={{ color: 'var(--color-text-light)' }}>
-                    {bm.url}
-                  </p>
-                  {loading === bm.id && (
-                    <p className="text-xs mt-2 font-medium" style={{ color: 'var(--color-accent-dark)' }}>
-                      AIが記事を読み取っています...
+                  {/* OGP Image */}
+                  {bm.image_url && (
+                    <div className="w-full h-36 overflow-hidden">
+                      <img
+                        src={bm.image_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </div>
+                  )}
+                  <div className="p-4">
+                    <p className="text-sm font-semibold line-clamp-2" style={{ color: 'var(--color-text)' }}>
+                      {bm.title}
                     </p>
-                  )}
-                  {activeTab === 'done' && bm.status === 'done' && (
-                    <p className="text-xs mt-2" style={{ color: 'var(--color-accent-dark)' }}>☀️ 学び完了</p>
-                  )}
+                    <p className="text-xs mt-1 truncate" style={{ color: 'var(--color-text-light)' }}>
+                      {bm.url}
+                    </p>
+                    {loading === bm.id && (
+                      <p className="text-xs mt-2 font-medium" style={{ color: 'var(--color-accent-dark)' }}>
+                        AIが記事を読み取っています...
+                      </p>
+                    )}
+                    {activeTab === 'done' && bm.status === 'done' && (
+                      <p className="text-xs mt-2" style={{ color: 'var(--color-accent-dark)' }}>☀️ 学び完了</p>
+                    )}
+                  </div>
                 </button>
               </li>
             ))}
