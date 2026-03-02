@@ -31,10 +31,15 @@ export default function LoginPage() {
         : await signIn(email, password);
 
       if (result.error) {
-        setError(result.error);
+        // メアド列挙防止: Supabaseエラーを一般化
+        if (isSignUp) {
+          // 登録成功でも失敗でも同じメッセージ
+          setError('確認メールを送信しました。メールを確認してください。');
+        } else {
+          setError('メールアドレスまたはパスワードが正しくありません。');
+        }
       } else if (isSignUp) {
         setError(null);
-        // Show confirmation message for sign up
         setError('確認メールを送信しました。メールを確認してください。');
       }
     } catch {

@@ -127,12 +127,25 @@ export default function DashboardPage() {
     setCheckInSubmitting(false);
   };
 
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    if (!supabase) return {};
+    const { data: { session: s } } = await supabase.auth.getSession();
+    return s?.access_token ? { 'Authorization': `Bearer ${s.access_token}` } : {};
+  };
+
   const handleAddUrl = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim() || !supabase || !user) return;
 
-    if (!url.includes('note.com')) {
-      setError('現在、noteの記事URLのみ対応しています。');
+    // URLバリデーション（protocol + domain）
+    try {
+      const parsed = new URL(url.trim());
+      if (parsed.protocol !== 'https:' || !parsed.hostname.endsWith('note.com')) {
+        setError('現在、note.comのhttps記事URLのみ対応しています。');
+        return;
+      }
+    } catch {
+      setError('URLの形式が正しくありません。');
       return;
     }
 
@@ -145,9 +158,10 @@ export default function DashboardPage() {
       let imageUrl: string | null = null;
 
       try {
+        const authHeaders = await getAuthHeaders();
         const ogpRes = await fetch('/api/ogp', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({ url: url.trim() }),
         });
         const ogpData = await ogpRes.json();
@@ -184,9 +198,10 @@ export default function DashboardPage() {
   const handleSelectArticle = async (bookmark: Bookmark) => {
     setLoading(bookmark.id);
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch('/api/extract', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({
           url: bookmark.url,
           userChallenges: profile?.current_challenges || [],
@@ -389,7 +404,7 @@ export default function DashboardPage() {
                     <div className="w-full h-36 overflow-hidden">
                       <img
                         src={bm.image_url}
-                        alt=""
+                        alt={bm.title}
                         className="w-full h-full object-cover"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       />

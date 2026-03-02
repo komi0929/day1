@@ -22,6 +22,19 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "day1",
   },
+  openGraph: {
+    title: "day1 — 今日の朝を、学びではじめよう",
+    description: "noteの記事を血肉にする。1日5分の朝習慣アプリ。",
+    url: "https://day1.hitokoto.tech",
+    siteName: "day1",
+    type: "website",
+    locale: "ja_JP",
+  },
+  twitter: {
+    card: "summary",
+    title: "day1 — 今日の朝を、学びではじめよう",
+    description: "noteの記事を血肉にする。1日5分の朝習慣アプリ。",
+  },
 };
 
 export const viewport: Viewport = {
@@ -41,6 +54,7 @@ export default function RootLayout({
     <html lang="ja">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-dvh`}

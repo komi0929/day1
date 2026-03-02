@@ -117,6 +117,7 @@ export default function CompletePage() {
         {/* Share Button */}
         <button
           onClick={handleShare}
+          aria-label="Xでシェアする"
           className="w-full py-4 px-6 rounded-xl font-bold text-sm text-white transition-all active:scale-95 flex items-center justify-center gap-3 shadow-md"
           style={{ background: '#000000' }}
         >

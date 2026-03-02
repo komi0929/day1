@@ -1,17 +1,29 @@
 import { NextResponse } from "next/server";
+import { validateNoteUrl, authenticateRequest } from "@/lib/security";
 
 export async function POST(req: Request) {
   try {
+    // 🔒 認証チェック
+    const authResult = await authenticateRequest(req);
+    if (authResult instanceof NextResponse) return authResult;
+
     const { url } = await req.json();
 
     if (!url) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
+    // 🔒 URLバリデーション（SSRF防止）
+    const validation = validateNoteUrl(url);
+    if (!validation.valid) {
+      return NextResponse.json({ title: "", image: "", error: validation.error });
+    }
+
     const response = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; day1-bot/1.0)",
       },
+      signal: AbortSignal.timeout(10000), // 10秒タイムアウト
     });
 
     if (!response.ok) {

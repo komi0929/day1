@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { validateNoteUrl, authenticateRequest } from "@/lib/security";
 
 // ============================================
 // Mock data for when GEMINI_API_KEY is not set
@@ -44,6 +45,7 @@ async function fetchArticleText(url: string): Promise<string> {
         "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "ja,en;q=0.9",
     },
+    signal: AbortSignal.timeout(10000), // 10秒タイムアウト
   });
 
   if (!response.ok) {
@@ -66,12 +68,24 @@ async function fetchArticleText(url: string): Promise<string> {
 // ============================================
 export async function POST(req: Request) {
   try {
+    // 🔒 認証チェック
+    const authResult = await authenticateRequest(req);
+    if (authResult instanceof NextResponse) return authResult;
+
     const { url, text, userChallenges } = await req.json();
 
     let contentToProcess = text;
 
-    // Fetch article text from URL if needed
+    // 🔒 URLバリデーション（SSRF防止）
     if (url && !contentToProcess) {
+      const validation = validateNoteUrl(url);
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: "INVALID_URL", message: validation.error },
+          { status: 400 },
+        );
+      }
+
       try {
         contentToProcess = await fetchArticleText(url);
       } catch {
@@ -96,11 +110,15 @@ export async function POST(req: Request) {
       );
     }
 
+    // テキスト入力の長さ制限
+    if (typeof contentToProcess === 'string' && contentToProcess.length > 50000) {
+      contentToProcess = contentToProcess.substring(0, 50000);
+    }
+
     // Check for API key — return mock if not set
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.warn("GEMINI_API_KEY is not set. Returning mock data.");
-      // Alternate between DO and BE mocks based on URL hash
       const hash = (url || text || "").length;
       return NextResponse.json(hash % 2 === 0 ? MOCK_DO_RESPONSE : MOCK_BE_RESPONSE);
     }
