@@ -18,7 +18,7 @@ const CHALLENGES = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, loading: authLoading, profile } = useAuth();
+  const { user, loading: authLoading, profile, refreshProfile } = useAuth();
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(0); // 0: welcome, 1: select
@@ -52,6 +52,9 @@ export default function OnboardingPage() {
       .from('profiles')
       .update({ current_challenges: labels })
       .eq('id', user.id);
+
+    // Refresh profile in AuthContext so dashboard sees the updated data
+    await refreshProfile();
 
     router.replace('/dashboard');
   };
