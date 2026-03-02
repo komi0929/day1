@@ -278,9 +278,6 @@ export default function DashboardPage() {
                     <p className="text-sm font-semibold line-clamp-2" style={{ color: 'var(--color-text)' }}>
                       {bm.title}
                     </p>
-                    <p className="text-xs mt-1 truncate" style={{ color: 'var(--color-text-light)' }}>
-                      {bm.url}
-                    </p>
                     {loading === bm.id && (
                       <p className="text-xs mt-2 font-medium" style={{ color: 'var(--color-accent-dark)' }}>
                         AIが記事を読み取っています...
