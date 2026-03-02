@@ -25,6 +25,10 @@ export default function DashboardPage() {
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [pendingCheckIn, setPendingCheckIn] = useState<{
     id: string;
@@ -232,6 +236,37 @@ export default function DashboardPage() {
     router.push('/login');
   };
 
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== '削除する' || !supabase) return;
+    setDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const res = await fetch('/api/delete-account', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(s?.access_token ? { 'Authorization': `Bearer ${s.access_token}` } : {}),
+        },
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setDeleteError(data.message || 'アカウントの削除に失敗しました。');
+        setDeleting(false);
+        return;
+      }
+
+      // ローカルセッションをクリアしてログイン画面へ
+      await signOut();
+      router.replace('/login');
+    } catch {
+      setDeleteError('通信エラーが発生しました。');
+      setDeleting(false);
+    }
+  };
+
   const unread = bookmarks.filter(b => b.status === 'unread');
   const done = bookmarks.filter(b => b.status === 'done');
   const currentList = activeTab === 'unread' ? unread : done;
@@ -399,7 +434,7 @@ export default function DashboardPage() {
                       </p>
                     )}
                     {activeTab === 'done' && bm.status === 'done' && (
-                      <p className="text-xs mt-2" style={{ color: 'var(--color-accent)' }}>血肉化済み</p>
+                      <p className="text-xs mt-2" style={{ color: 'var(--color-accent)' }}>学習済み</p>
                     )}
                   </div>
                 </button>
@@ -408,6 +443,67 @@ export default function DashboardPage() {
           </ul>
         )}
       </section>
+
+      {/* Account Danger Zone */}
+      <section className="px-5 pb-10">
+        <button
+          onClick={() => { setShowDeleteModal(true); setDeleteConfirmText(''); setDeleteError(null); }}
+          className="w-full py-3 text-xs font-medium rounded-xl transition-all active:scale-[0.98]"
+          style={{ color: 'var(--color-text-dim)', border: '1px solid var(--color-border)' }}
+        >
+          アカウントを削除する
+        </button>
+      </section>
+
+      {/* Delete Account Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: 'rgba(44,37,32,0.35)', backdropFilter: 'blur(6px)' }}>
+          <div className="card-raised w-full max-w-sm p-6 flex flex-col gap-4">
+            <h3 className="text-lg font-bold text-center" style={{ color: 'var(--color-text)' }}>
+              アカウントを削除しますか？
+            </h3>
+            <p className="text-xs leading-relaxed text-center" style={{ color: 'var(--color-text-muted)' }}>
+              すべてのデータ（ブックマーク・学習履歴）が完全に削除され、<strong>元に戻せません。</strong>
+            </p>
+
+            <div>
+              <label className="text-xs font-medium block mb-1.5" style={{ color: 'var(--color-text-dim)' }}>
+                確認のため「削除する」と入力してください
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="削除する"
+                className="input-field w-full"
+                autoComplete="off"
+              />
+            </div>
+
+            {deleteError && (
+              <p className="text-xs text-center" style={{ color: 'var(--g-coral)' }}>{deleteError}</p>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText !== '削除する' || deleting}
+                className="w-full py-3.5 rounded-xl font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-30"
+                style={{ background: '#e25c5c' }}
+              >
+                {deleting ? '削除中...' : '完全に削除する'}
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="btn-ghost w-full"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </main>
   );

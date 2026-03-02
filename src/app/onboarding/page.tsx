@@ -76,7 +76,7 @@ export default function OnboardingPage() {
               </h1>
               <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
                 noteの記事を「読んだだけ」で終わらせず、<br />
-                あなたの<strong style={{ color: 'var(--color-text)' }}>血肉</strong>にする。<br />
+                あなたの<strong style={{ color: 'var(--color-text)' }}>学び</strong>にする。<br />
                 それが day1 です。
               </p>
               <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-dim)' }}>

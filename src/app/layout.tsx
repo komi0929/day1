@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "day1 — 今日の朝を、学びではじめよう",
-  description: "1日1記事、5分間で知識を自分のものに。朝活のような学習習慣をつくるアプリ。",
+  description: "1日1記事、知識を自分のものに。朝活のような学習習慣をつくるアプリ。",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "day1 — 今日の朝を、学びではじめよう",
-    description: "noteの記事を血肉にする。1日5分の朝習慣アプリ。",
+    description: "noteの記事を自分のものにする。毎朝の学習習慣アプリ。",
     url: "https://day1.hitokoto.tech",
     siteName: "day1",
     type: "website",
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "day1 — 今日の朝を、学びではじめよう",
-    description: "noteの記事を血肉にする。1日5分の朝習慣アプリ。",
+    description: "noteの記事を自分のものにする。毎朝の学習習慣アプリ。",
     images: ["https://day1.hitokoto.tech/og-image.png"],
   },
 };

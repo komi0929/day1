@@ -1,7 +1,7 @@
 {
   "name": "day1 — 今日の朝を、学びではじめよう",
   "short_name": "day1",
-  "description": "1日1記事、5分間で知識を自分のものに。朝活のような学習習慣をつくるアプリ。",
+  "description": "1日1記事、知識を自分のものに。朝活のような学習習慣をつくるアプリ。",
   "start_url": "/dashboard",
   "display": "standalone",
   "orientation": "portrait",

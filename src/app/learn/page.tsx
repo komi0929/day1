@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { supabase } from '@/lib/supabase';
@@ -19,16 +19,13 @@ interface LearnData {
 
 const EMOTION_TAGS = ['共感', '驚き', '安心', '切なさ', '勇気', '感謝', '葛藤', '希望'];
 
-const BG_COLORS = [
-  '#FDF6EE', '#FBF0E4', '#F5EDE6', '#F7EFE2',
-  '#F3EBE0', '#F5EDE6', '#FBF0E4', '#FDF6EE',
-];
+
 
 export default function LearnPage() {
   const router = useRouter();
   const { user, loading: authLoading, refreshProfile } = useAuth();
   const [data, setData] = useState<LearnData | null>(null);
-  const [timeLeft, setTimeLeft] = useState(300);
+
   const [isCompleting, setIsCompleting] = useState(false);
 
   // DO state
@@ -40,7 +37,7 @@ export default function LearnPage() {
   const [selectedEmotions, setSelectedEmotions] = useState<string[]>([]);
   const [reflection, setReflection] = useState('');
 
-  const bgRef = useRef<HTMLElement>(null);
+
 
   // Load data from sessionStorage
   useEffect(() => {
@@ -52,23 +49,7 @@ export default function LearnPage() {
     setData(JSON.parse(saved));
   }, [router]);
 
-  // Timer + background transition
-  useEffect(() => {
-    if (timeLeft <= 0) return;
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        const next = prev - 1;
-        if (bgRef.current && next > 0) {
-          const progress = 1 - next / 300;
-          const colorIndex = Math.min(Math.floor(progress * BG_COLORS.length), BG_COLORS.length - 1);
-          bgRef.current.style.transition = 'background-color 3s ease';
-          bgRef.current.style.backgroundColor = BG_COLORS[colorIndex];
-        }
-        return next;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [timeLeft]);
+
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -96,10 +77,7 @@ export default function LearnPage() {
     if (!data || !supabase || !user || !canComplete) return;
     setIsCompleting(true);
 
-    if (bgRef.current) {
-      bgRef.current.style.transition = 'background-color 1.5s ease-in-out';
-      bgRef.current.style.backgroundColor = '#FDF6EE';
-    }
+
 
     await supabase
       .from('bookmarks')
@@ -181,20 +159,16 @@ export default function LearnPage() {
     );
   }
 
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
+
 
   return (
-    <main ref={bgRef} className="min-h-dvh flex flex-col" style={{ backgroundColor: '#FDF6EE', transition: 'background-color 3s ease' }}>
+    <main className="min-h-dvh flex flex-col" style={{ backgroundColor: '#FDF6EE' }}>
       <div className="flex-1 flex flex-col p-5 max-w-lg mx-auto w-full">
 
-        {/* Timer */}
-        <div className="flex justify-between items-center mb-6">
+        {/* Article Type Badge */}
+        <div className="flex items-center mb-6">
           <span className="badge badge-do">
             {data.articleType}
-          </span>
-          <span className="text-xs font-mono tabular-nums" style={{ color: 'var(--color-text-dim)' }}>
-            {minutes}:{seconds.toString().padStart(2, '0')}
           </span>
         </div>
 
@@ -306,7 +280,12 @@ export default function LearnPage() {
             disabled={!canComplete || isCompleting}
             className="btn-primary w-full disabled:opacity-30"
           >
-            {isCompleting ? '血肉化中...' : '血肉にする'}
+            {isCompleting
+              ? '保存中...'
+              : data?.articleType === 'DO'
+                ? 'アクションを決める'
+                : '気づきを残す'
+            }
           </button>
         </div>
 

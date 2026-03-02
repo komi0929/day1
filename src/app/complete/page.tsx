@@ -36,7 +36,7 @@ export default function CompletePage() {
     if (!completeData) return;
     const text = completeData.articleType === 'DO'
       ? `day1で学んで、明日やること決めた。\n\n「${completeData.commitment}」\n\n#day1 #朝活`
-      : `day1で記事を読んで、内省した。\n\n${completeData.emotions.join(' / ')}\n\n#day1 #朝活`;
+      : `day1で記事を読んで、気づきを得た。\n\n${completeData.emotions.join(' / ')}\n\n#day1 #朝活`;
 
     const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
     window.open(xUrl, '_blank');
@@ -56,7 +56,7 @@ export default function CompletePage() {
 
         <div className="space-y-3">
           <h1 className="text-3xl font-black text-gradient">
-            血肉化、完了。
+            {completeData.articleType === 'DO' ? 'アクション、決定。' : '今日の気づき、完了。'}
           </h1>
           <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
             新しい day1 がはじまりました
