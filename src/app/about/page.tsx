@@ -62,9 +62,9 @@ export default function AboutPage() {
                   2
                 </span>
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>AIと学ぶ</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>AIと一緒に学ぶ</p>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                    AIが記事の内容を分析。「アクション型（DO）」なら具体的な行動を3つ提案、「気づき型（BE）」なら深い問いかけをしてくれます。
+                    AIが記事を分析し、「アクション型（DO）」なら具体的な行動を提案、「気づき型（BE）」なら深い問いかけをしてくれます。
                   </p>
                 </div>
               </div>
@@ -74,21 +74,9 @@ export default function AboutPage() {
                   3
                 </span>
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>自分のものにする</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>行動して、振り返る</p>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                    アクションを決めたり、気づきを言葉にすることで、読んだ内容が「自分の学び」になります。
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-3 items-start">
-                <span className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                  style={{ background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))' }}>
-                  4
-                </span>
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>振り返る</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                    学習ノートで過去の学びを一覧。決めたアクションの達成状況も確認できます。
+                    アクションを決めて実行し、学習ノートで達成状況を振り返り。学びが「自分の成長記録」になります。
                   </p>
                 </div>
               </div>
