@@ -28,6 +28,7 @@ export default function HistoryPage() {
   const [sessions, setSessions] = useState<HistorySession[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [checkingIn, setCheckingIn] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!supabase || !user) return;
@@ -64,6 +65,26 @@ export default function HistoryPage() {
     if (!authLoading && !user) router.replace('/login');
   }, [user, authLoading, router]);
 
+  // --- Check-in handler (optimistic update) ---
+  const handleCheckIn = async (sessionId: string, status: 'completed' | 'skipped') => {
+    if (!supabase || !user) return;
+    setCheckingIn(sessionId);
+
+    // Optimistic: update local state immediately
+    setSessions(prev =>
+      prev.map(s => s.id === sessionId ? { ...s, check_in_status: status } : s)
+    );
+
+    // Persist to DB
+    await supabase
+      .from('learning_sessions')
+      .update({ check_in_status: status })
+      .eq('id', sessionId)
+      .eq('user_id', user.id);
+
+    setCheckingIn(null);
+  };
+
   // --- Derived data ---
   const doSessions = sessions.filter(s => s.article_type === 'DO');
   const beSessions = sessions.filter(s => s.article_type === 'BE');
@@ -71,7 +92,7 @@ export default function HistoryPage() {
     : sessions.filter(s => s.article_type === activeFilter);
 
   const pendingActions = doSessions.filter(s => s.check_in_status === 'pending' && s.user_commitment);
-  const completedActions = doSessions.filter(s => s.check_in_status === 'completed');
+  const completedDoCount = doSessions.filter(s => s.check_in_status === 'completed').length;
 
   const formatDate = (date: string) => {
     const d = new Date(date);
@@ -119,13 +140,13 @@ export default function HistoryPage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider mt-0.5" style={{ color: 'var(--color-text-dim)' }}>学習した記事</p>
           </div>
           <div className="flex-1 card p-3 text-center">
-            <p className="text-2xl font-black tabular-nums" style={{ color: '#4A6AB0' }}>
-              {doSessions.length}
+            <p className="text-2xl font-black tabular-nums" style={{ color: 'var(--color-text)' }}>
+              {doSessions.length > 0 ? `${completedDoCount}/${doSessions.length}` : '--'}
             </p>
-            <p className="text-[10px] font-semibold uppercase tracking-wider mt-0.5" style={{ color: 'var(--color-text-dim)' }}>アクション</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider mt-0.5" style={{ color: 'var(--color-text-dim)' }}>アクション達成</p>
           </div>
           <div className="flex-1 card p-3 text-center">
-            <p className="text-2xl font-black tabular-nums" style={{ color: '#7B5EA8' }}>
+            <p className="text-2xl font-black tabular-nums" style={{ color: 'var(--color-text)' }}>
               {beSessions.length}
             </p>
             <p className="text-[10px] font-semibold uppercase tracking-wider mt-0.5" style={{ color: 'var(--color-text-dim)' }}>気づき</p>
@@ -133,32 +154,47 @@ export default function HistoryPage() {
         </div>
       </section>
 
-      {/* Pending Actions Banner */}
+      {/* Pending Actions — Interactive Check-in */}
       {pendingActions.length > 0 && (
         <section className="px-5 pb-3">
           <div className="card-raised p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="w-2 h-2 rounded-full" style={{ background: 'var(--g-coral)' }} />
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-2 h-2 rounded-full" style={{ background: 'var(--g-amber)' }} />
               <p className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>
-                未達成のアクション ({pendingActions.length})
+                やること ({pendingActions.length})
               </p>
             </div>
-            <div className="flex flex-col gap-2">
-              {pendingActions.slice(0, 3).map(s => (
-                <div key={s.id} className="flex items-start gap-2">
-                  <span className="text-[10px] mt-0.5 shrink-0 tabular-nums" style={{ color: 'var(--color-text-dim)' }}>
-                    {formatDate(s.completed_at)}
-                  </span>
-                  <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text)' }}>
+            <div className="flex flex-col gap-3">
+              {pendingActions.map(s => (
+                <div key={s.id} className="rounded-lg p-3" style={{ background: 'rgba(232, 197, 71, 0.06)', border: '1px solid rgba(232, 197, 71, 0.12)' }}>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-[10px] shrink-0 tabular-nums" style={{ color: 'var(--color-text-dim)' }}>
+                      {formatDate(s.completed_at)}
+                    </span>
+                  </div>
+                  <p className="text-sm leading-relaxed font-medium mb-3" style={{ color: 'var(--color-text)' }}>
                     {s.user_commitment}
                   </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleCheckIn(s.id, 'completed')}
+                      disabled={checkingIn === s.id}
+                      className="flex-1 py-2 rounded-lg text-xs font-bold text-white transition-all active:scale-[0.97] disabled:opacity-50"
+                      style={{ background: 'var(--g-sage)' }}
+                    >
+                      {checkingIn === s.id ? '...' : 'できた！'}
+                    </button>
+                    <button
+                      onClick={() => handleCheckIn(s.id, 'skipped')}
+                      disabled={checkingIn === s.id}
+                      className="py-2 px-4 rounded-lg text-xs font-medium transition-all active:scale-[0.97] disabled:opacity-50"
+                      style={{ color: 'var(--color-text-dim)', border: '1px solid var(--color-border)' }}
+                    >
+                      スキップ
+                    </button>
+                  </div>
                 </div>
               ))}
-              {pendingActions.length > 3 && (
-                <p className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>
-                  +{pendingActions.length - 3}件
-                </p>
-              )}
             </div>
           </div>
         </section>
@@ -202,6 +238,7 @@ export default function HistoryPage() {
               const isExpanded = expandedId === session.id;
               const isDO = session.article_type === 'DO';
               const isBE = session.article_type === 'BE';
+              const isPending = isDO && session.check_in_status === 'pending';
               const title = session.bookmarks?.title || session.ai_summary || 'タイトルなし';
 
               return (
@@ -237,7 +274,7 @@ export default function HistoryPage() {
                             }}
                           >
                             {session.check_in_status === 'completed' ? '✓ 達成' :
-                              session.check_in_status === 'skipped' ? 'スキップ' : '未チェック'}
+                              session.check_in_status === 'skipped' ? 'スキップ' : 'やること'}
                           </span>
                         )}
                       </div>
@@ -290,6 +327,34 @@ export default function HistoryPage() {
                       {/* Expanded Detail */}
                       {isExpanded && (
                         <div className="mt-3 pt-3 flex flex-col gap-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+
+                          {/* Card-level Check-in for pending DO */}
+                          {isPending && (
+                            <div className="rounded-lg p-3" style={{ background: 'rgba(232, 197, 71, 0.06)', border: '1px solid rgba(232, 197, 71, 0.12)' }}>
+                              <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#B8972E' }}>
+                                このアクション、やりましたか？
+                              </p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleCheckIn(session.id, 'completed'); }}
+                                  disabled={checkingIn === session.id}
+                                  className="flex-1 py-2 rounded-lg text-xs font-bold text-white transition-all active:scale-[0.97] disabled:opacity-50"
+                                  style={{ background: 'var(--g-sage)' }}
+                                >
+                                  {checkingIn === session.id ? '...' : 'できた！'}
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleCheckIn(session.id, 'skipped'); }}
+                                  disabled={checkingIn === session.id}
+                                  className="py-2 px-4 rounded-lg text-xs font-medium transition-all active:scale-[0.97] disabled:opacity-50"
+                                  style={{ color: 'var(--color-text-dim)', border: '1px solid var(--color-border)' }}
+                                >
+                                  スキップ
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
                           {/* AI Question (BE) */}
                           {isBE && session.ai_generated_question && (
                             <div>

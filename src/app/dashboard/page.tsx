@@ -30,11 +30,11 @@ export default function DashboardPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const [pendingCheckIn, setPendingCheckIn] = useState<{
+  const [pendingCheckIns, setPendingCheckIns] = useState<{
     id: string;
     user_commitment: string;
     articleTitle: string;
-  } | null>(null);
+  }[]>([]);
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
 
   useEffect(() => {
@@ -81,16 +81,14 @@ export default function DashboardPage() {
       .eq('check_in_status', 'pending')
       .not('user_commitment', 'eq', '')
       .lt('completed_at', todayStart.toISOString())
-      .order('completed_at', { ascending: false })
-      .limit(1);
+      .order('completed_at', { ascending: false });
 
     if (data && data.length > 0) {
-      const session = data[0];
-      setPendingCheckIn({
+      setPendingCheckIns(data.map(session => ({
         id: session.id,
         user_commitment: session.user_commitment || '',
         articleTitle: session.ai_summary || '',
-      });
+      })));
     }
   }, [user]);
 
@@ -102,16 +100,18 @@ export default function DashboardPage() {
   }, [user, loadBookmarks, checkPendingCheckIns]);
 
   const handleCheckIn = async (status: 'completed' | 'skipped') => {
-    if (!supabase || !user || !pendingCheckIn) return;
+    if (!supabase || !user || pendingCheckIns.length === 0) return;
     setCheckInSubmitting(true);
 
+    const current = pendingCheckIns[0];
     await supabase
       .from('learning_sessions')
       .update({ check_in_status: status })
-      .eq('id', pendingCheckIn.id)
+      .eq('id', current.id)
       .eq('user_id', user.id);
 
-    setPendingCheckIn(null);
+    // Remove completed item, next one will show
+    setPendingCheckIns(prev => prev.slice(1));
     setCheckInSubmitting(false);
   };
 
@@ -271,20 +271,25 @@ export default function DashboardPage() {
     <main className="min-h-dvh flex flex-col gradient-main">
 
       {/* Check-in Modal */}
-      {pendingCheckIn && (
+      {pendingCheckIns.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: 'rgba(44,37,32,0.35)', backdropFilter: 'blur(6px)' }}>
           <div className="card-raised w-full max-w-sm p-6 flex flex-col gap-5">
             <div className="text-center space-y-2">
               <h3 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>
-                昨日のアクション、どうでした？
+                やること、どうでした？
               </h3>
+              {pendingCheckIns.length > 1 && (
+                <p className="text-[11px] font-medium" style={{ color: 'var(--color-text-dim)' }}>
+                  残り {pendingCheckIns.length} 件
+                </p>
+              )}
             </div>
 
             <div
               className="card p-4 text-sm leading-relaxed"
               style={{ color: 'var(--color-text)' }}
             >
-              {pendingCheckIn.user_commitment}
+              {pendingCheckIns[0].user_commitment}
             </div>
 
             <div className="flex flex-col gap-2">
