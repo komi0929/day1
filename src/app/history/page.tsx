@@ -177,9 +177,7 @@ export default function HistoryPage() {
             className="flex-1 py-2.5 text-[11px] font-semibold rounded-lg transition-all"
             style={{
               background: activeFilter === tab.key
-                ? tab.key === 'DO' ? 'linear-gradient(135deg, #4A6AB0, #5B78C4)'
-                  : tab.key === 'BE' ? 'linear-gradient(135deg, #7B5EA8, #8B6BB5)'
-                    : 'linear-gradient(135deg, var(--g-coral), var(--g-peach))'
+                ? 'linear-gradient(135deg, var(--g-coral), var(--g-peach))'
                 : 'var(--color-surface)',
               color: activeFilter === tab.key ? '#fff' : 'var(--color-text-muted)',
             }}

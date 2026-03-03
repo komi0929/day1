@@ -250,11 +250,11 @@ export default function LearnPage() {
                     className="px-3 py-2 rounded-lg text-xs font-semibold transition-all active:scale-95"
                     style={{
                       background: selectedEmotions.includes(tag)
-                        ? 'linear-gradient(135deg, var(--g-violet), var(--g-blue))'
+                        ? 'linear-gradient(135deg, var(--g-coral), var(--g-peach))'
                         : 'var(--color-surface)',
                       color: selectedEmotions.includes(tag) ? '#fff' : 'var(--color-text-muted)',
                       border: selectedEmotions.includes(tag)
-                        ? '1px solid rgba(139, 107, 181, 0.4)'
+                        ? '1px solid rgba(232, 168, 124, 0.4)'
                         : '1px solid var(--color-border)',
                     }}
                   >
