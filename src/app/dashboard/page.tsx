@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [streak, setStreak] = useState(0);
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -65,18 +65,7 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  const loadStreak = useCallback(async () => {
-    if (!supabase || !user) return;
-    const { data } = await supabase
-      .from('profiles')
-      .select('streak')
-      .eq('id', user.id)
-      .single();
 
-    if (data) {
-      setStreak(data.streak ?? 0);
-    }
-  }, [user]);
 
   const checkPendingCheckIns = useCallback(async () => {
     if (!supabase || !user) return;
@@ -108,10 +97,9 @@ export default function DashboardPage() {
   useEffect(() => {
     if (user) {
       loadBookmarks();
-      loadStreak();
       checkPendingCheckIns();
     }
-  }, [user, loadBookmarks, loadStreak, checkPendingCheckIns]);
+  }, [user, loadBookmarks, checkPendingCheckIns]);
 
   const handleCheckIn = async (status: 'completed' | 'skipped') => {
     if (!supabase || !user || !pendingCheckIn) return;
@@ -332,9 +320,6 @@ export default function DashboardPage() {
       <header className="px-5 pt-6 pb-4 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-black text-gradient">day1</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-dim)' }}>
-            {streak > 0 ? `${streak}日連続達成` : 'おはようございます'}
-          </p>
         </div>
         <button
           onClick={handleLogout}
@@ -382,11 +367,11 @@ export default function DashboardPage() {
           未読 ({unread.length})
         </button>
         <button
-          onClick={() => setActiveTab('done')}
+          onClick={() => router.push('/history')}
           className="flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all"
           style={{
-            background: activeTab === 'done' ? 'linear-gradient(135deg, var(--g-coral), var(--g-peach))' : 'var(--color-surface)',
-            color: activeTab === 'done' ? '#fff' : 'var(--color-text-muted)',
+            background: 'var(--color-surface)',
+            color: 'var(--color-text-muted)',
           }}
         >
           完了済み ({done.length})
@@ -434,9 +419,7 @@ export default function DashboardPage() {
                           AIが学びを準備中...
                         </p>
                       )}
-                      {activeTab === 'done' && bm.status === 'done' && (
-                        <p className="text-[11px] mt-1 font-medium" style={{ color: 'var(--color-accent)' }}>学習済み</p>
-                      )}
+
                     </div>
                   </div>
                 </button>
