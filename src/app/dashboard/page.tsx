@@ -430,7 +430,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Account Danger Zone */}
-      <section className="px-5 pb-10">
+      <section className="px-5 pb-6">
         <button
           onClick={() => { setShowDeleteModal(true); setDeleteConfirmText(''); setDeleteError(null); }}
           className="w-full py-3 text-xs font-medium rounded-xl transition-all active:scale-[0.98]"
@@ -439,6 +439,13 @@ export default function DashboardPage() {
           アカウントを削除する
         </button>
       </section>
+
+      {/* Footer */}
+      <footer className="px-5 pb-10 flex justify-center gap-4 text-xs" style={{ color: 'var(--color-text-dim)' }}>
+        <a href="/about" className="underline hover:opacity-80">day1について</a>
+        <a href="/terms" className="underline hover:opacity-80">利用規約</a>
+        <a href="/privacy" className="underline hover:opacity-80">プライバシー</a>
+      </footer>
 
       {/* Delete Account Modal */}
       {showDeleteModal && (

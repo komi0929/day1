@@ -158,6 +158,7 @@ export default function LoginPage() {
         </p>
 
         <div className="flex justify-center gap-4 mt-4 text-xs" style={{ color: 'var(--color-text-dim)' }}>
+          <a href="/about" className="underline hover:opacity-80">day1について</a>
           <a href="/terms" className="underline hover:opacity-80">利用規約</a>
           <a href="/privacy" className="underline hover:opacity-80">プライバシーポリシー</a>
         </div>
