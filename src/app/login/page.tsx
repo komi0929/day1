@@ -6,14 +6,37 @@ import { useAuth } from '@/lib/auth-context';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading, signIn, signUp, signInWithGoogle } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [signUpSuccess, setSignUpSuccess] = useState(false);
 
   useEffect(() => {
     if (!loading && user) {
       router.replace('/workspace');
     }
   }, [user, loading, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password.trim() || submitting) return;
+    setSubmitting(true);
+    setError(null);
+
+    const result = isSignUp
+      ? await signUp(email.trim(), password)
+      : await signIn(email.trim(), password);
+
+    if (result.error) {
+      setError(result.error);
+    } else if (isSignUp) {
+      setSignUpSuccess(true);
+    }
+    setSubmitting(false);
+  };
 
   const handleGoogleLogin = async () => {
     const result = await signInWithGoogle();
@@ -32,9 +55,9 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-dvh flex flex-col items-center justify-center p-6 gradient-sunset">
-      <div className="w-full max-w-sm flex flex-col gap-8">
+      <div className="w-full max-w-sm flex flex-col gap-6">
         {/* Logo */}
-        <header className="text-center space-y-4">
+        <header className="text-center space-y-3">
           <div className="text-5xl mb-2">🧭</div>
           <h1 className="text-5xl font-black tracking-tighter text-gradient">
             Compass
@@ -69,6 +92,58 @@ export default function LoginPage() {
           </svg>
           Googleで始める
         </button>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
+          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--color-text-dim)' }}>or</span>
+          <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
+        </div>
+
+        {/* Email/Password Form */}
+        {signUpSuccess ? (
+          <div className="card p-5 text-center">
+            <p className="text-sm font-bold mb-1" style={{ color: 'var(--color-success)' }}>✓ 確認メールを送信しました</p>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              メール内のリンクをクリックして登録を完了してください。
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <input
+              type="email"
+              placeholder="メールアドレス"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="input-field text-sm"
+              required
+            />
+            <input
+              type="password"
+              placeholder="パスワード（6文字以上）"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="input-field text-sm"
+              minLength={6}
+              required
+            />
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary w-full text-sm py-3"
+            >
+              {submitting ? '処理中...' : isSignUp ? '新規登録' : 'ログイン'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setIsSignUp(!isSignUp); setError(null); setSignUpSuccess(false); }}
+              className="text-xs font-medium text-center"
+              style={{ color: 'var(--color-text-dim)' }}
+            >
+              {isSignUp ? 'アカウントをお持ちの方 → ログイン' : 'アカウントをお持ちでない方 → 新規登録'}
+            </button>
+          </form>
+        )}
 
         {error && (
           <div className="p-3 text-xs rounded-lg text-center" style={{ background: 'rgba(232, 101, 90, 0.12)', color: 'var(--g-coral)', border: '1px solid rgba(232, 101, 90, 0.2)' }}>
