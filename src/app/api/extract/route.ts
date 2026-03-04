@@ -4,26 +4,28 @@ import { authenticateRequest } from '@/lib/security';
 
 const SYSTEM_PROMPT = `あなたは、ユーザーの深層心理を解き明かす「インサイト・エクストラクター」です。
 
-ユーザーの「もやもや」と、「複数の他者の言葉（note抜粋）」を横断的に分析し、以下の構造で出力してください。一般論は避け、なぜこれらの言葉に惹かれたのか、深層心理を突く「アハ体験」を提供すること。
+入力は2種類あります：
+1. **【最重要】ユーザー自身のnote（悩み・もやもや）** — これがインサイトの核です。この文章を最も深く、丁寧に、行間まで読み込んでください。表面的な言葉だけでなく、書かれていない感情・葛藤・本当に望んでいることを推理してください。
+2. **noteで見つけた気になる言葉** — ユーザーが他者のnoteで心に引っかかった文章群。なぜこれらの言葉に惹かれたのかを分析する材料です。
+
+この2つを横断的に分析し、以下の構造で出力してください。一般論は厳禁。なぜこれらの言葉に惹かれたのか、ユーザー自身すら気づいていない深層心理を突く「アハ体験」を提供すること。
 
 必ず以下のJSON形式で出力してください。マークダウン記法のコードブロックは使わず、純粋なJSONのみを返してください。
 
 {
   "title": "今回の気づきを象徴する、詩的で印象的なタイトル（15字以内）",
-  "thread": "なぜ一見バラバラなこれらの言葉に惹かれたのか。根底にある「隠れた願い・結節点」の推理と明示。ユーザーが自分でも気づいていなかった深層の欲求を言語化する。",
-  "now": "もやもやを否定せず、健全な葛藤として客観的に再定義する。「あなたは今、〜という分岐点にいる」のような形で、現在地を肯定的に捉え直す。",
-  "be": "引用した知見を編み込んだ、目指すべき未来のスタンス。「〜でありたい」という北極星を示す。",
-  "do": "Beに向かうための、具体的で実行可能な最小アクション。明日すぐできる一歩を提示する。"
+  "thread": "【最重要分析】ユーザーの悩み（自分のnote）と、他者のnoteで惹かれた言葉群を横断して見えてくる『隠れた結節点』を推理する。なぜ悩んでいる中でこれらの言葉に惹かれたのか？ 根底にある無意識の願い・欲求を言語化する。ユーザーの悩みの文章を深く読み込み、行間にある感情と、引用された言葉との共鳴点を具体的に指摘すること。",
+  "now": "もやもやを否定せず、健全な葛藤として客観的に再定義する。ユーザーの悩みの具体的な表現を引用しながら、「あなたは今、〜という分岐点にいる」のような形で、現在地を肯定的に捉え直す。",
+  "be": "ユーザーの悩みと、惹かれた言葉群を編み込んだ、目指すべき未来のスタンス。「〜でありたい」という北極星を、ユーザーの文脈に完全に寄り添った形で示す。",
+  "do": "Beに向かうための、具体的で実行可能な最小アクション。明日すぐできる一歩を、ユーザーの状況を踏まえて提示する。"
 }`;
 
 interface NoteSource {
   url: string;
-  note_title: string;
   excerpt: string;
 }
 
 export async function POST(req: Request) {
-  // 認証チェック
   const authResult = await authenticateRequest(req);
   if (authResult instanceof NextResponse) return authResult;
 
@@ -34,24 +36,23 @@ export async function POST(req: Request) {
       sources: NoteSource[];
     };
 
-    // バリデーション
     if (!moyamoya || typeof moyamoya !== 'string' || moyamoya.trim().length === 0) {
       return NextResponse.json(
-        { error: 'VALIDATION_ERROR', message: '「もやもや」を入力してください。' },
+        { error: 'VALIDATION_ERROR', message: '自分のnote（悩み）を入力してください。' },
         { status: 400 }
       );
     }
 
     if (!sources || !Array.isArray(sources) || sources.length === 0) {
       return NextResponse.json(
-        { error: 'VALIDATION_ERROR', message: 'noteの引用を最低1つ追加してください。' },
+        { error: 'VALIDATION_ERROR', message: 'noteで見つけた気になる言葉を最低1つ追加してください。' },
         { status: 400 }
       );
     }
 
-    if (moyamoya.length > 2000) {
+    if (moyamoya.length > 5000) {
       return NextResponse.json(
-        { error: 'VALIDATION_ERROR', message: '「もやもや」は2000文字以内で入力してください。' },
+        { error: 'VALIDATION_ERROR', message: '悩みは5000文字以内で入力してください。' },
         { status: 400 }
       );
     }
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
     for (const s of sources) {
       if (!s.excerpt || s.excerpt.trim().length === 0) {
         return NextResponse.json(
-          { error: 'VALIDATION_ERROR', message: '抜粋テキストが空のnoteがあります。' },
+          { error: 'VALIDATION_ERROR', message: '気になる言葉が空の項目があります。' },
           { status: 400 }
         );
       }
@@ -74,13 +75,17 @@ export async function POST(req: Request) {
     }
 
     const sourcesText = sources
-      .map((s, i) => `【note ${i + 1}】${s.note_title ? `「${s.note_title}」` : '(無題)'}\n${s.excerpt}`)
+      .map((s, i) => `【気になる言葉 ${i + 1}】\n${s.excerpt}`)
       .join('\n\n');
 
-    const userPrompt = `## ユーザーの「もやもや」
+    const userPrompt = `## 【最重要：熟読せよ】ユーザー自身のnote（悩み・もやもや）
+以下はユーザーが自分のnoteに書いた悩みです。表面的な意味だけでなく、行間に隠された感情・葛藤・本当の望みを読み取ってください。
+
 ${moyamoya}
 
-## 惹かれた他者の言葉たち
+## noteで見つけた気になる言葉たち
+以下はユーザーが他者のnoteで心に引っかかった文章群です。なぜこれらに惹かれたのかを、上記の悩みとの関連で分析してください。
+
 ${sourcesText}
 
 上記を横断的に分析し、指定のJSON形式で出力してください。`;

@@ -8,7 +8,6 @@ import { supabase } from '@/lib/supabase';
 interface NoteSource {
   id: string;
   url: string;
-  note_title: string;
   excerpt: string;
 }
 
@@ -30,7 +29,7 @@ export default function WorkspacePage() {
 
   const [moyamoya, setMoyamoya] = useState('');
   const [sources, setSources] = useState<NoteSource[]>([
-    { id: generateId(), url: '', note_title: '', excerpt: '' },
+    { id: generateId(), url: '', excerpt: '' },
   ]);
   const [insight, setInsight] = useState<Insight | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -45,7 +44,7 @@ export default function WorkspacePage() {
   }, [user, loading, router]);
 
   const addSource = useCallback(() => {
-    setSources(prev => [...prev, { id: generateId(), url: '', note_title: '', excerpt: '' }]);
+    setSources(prev => [...prev, { id: generateId(), url: '', excerpt: '' }]);
   }, []);
 
   const removeSource = useCallback((id: string) => {
@@ -77,7 +76,6 @@ export default function WorkspacePage() {
           moyamoya: moyamoya.trim(),
           sources: validSources.map(s => ({
             url: s.url.trim(),
-            note_title: s.note_title.trim(),
             excerpt: s.excerpt.trim(),
           })),
         }),
@@ -127,7 +125,7 @@ export default function WorkspacePage() {
             validSources.map((s, i) => ({
               insight_id: insightData.id,
               url: s.url.trim(),
-              note_title: s.note_title.trim(),
+              note_title: '',
               excerpt: s.excerpt.trim(),
               sort_order: i,
             }))
@@ -145,7 +143,7 @@ export default function WorkspacePage() {
 
   const handleReset = () => {
     setMoyamoya('');
-    setSources([{ id: generateId(), url: '', note_title: '', excerpt: '' }]);
+    setSources([{ id: generateId(), url: '', excerpt: '' }]);
     setInsight(null);
     setSaved(false);
     setError(null);
@@ -172,8 +170,7 @@ export default function WorkspacePage() {
           </button>
           <button
             onClick={async () => {
-              const { signOut } = await import('@/lib/auth-context').then(() => ({ signOut: () => supabase?.auth.signOut() }));
-              await signOut();
+              await supabase?.auth.signOut();
               router.replace('/login');
             }}
             className="text-xs font-medium"
@@ -188,30 +185,36 @@ export default function WorkspacePage() {
       <main className="workspace-layout" style={{ paddingTop: '56px' }}>
         {/* ─── Left Panel: Input Pool ─── */}
         <div className="workspace-panel workspace-panel-left">
-          <div className="max-w-xl mx-auto flex flex-col gap-8">
-            {/* もやもや入力 */}
+          <div className="max-w-xl mx-auto flex flex-col gap-10">
+
+            {/* 自分のもやもや — note貼付スタイル */}
             <section>
-              <label className="block text-xs font-bold mb-3 tracking-wider uppercase" style={{ color: 'var(--color-text-muted)' }}>
-                💭 今のもやもや
+              <label className="block text-xs font-bold mb-2 tracking-wider uppercase" style={{ color: 'var(--color-text-muted)' }}>
+                📌 自分のnote — 今の悩み・もやもや
               </label>
-              <textarea
-                className="textarea-auto"
-                placeholder="言語化できなくても大丈夫。頭の中にあることを、そのまま書き出してみてください..."
-                value={moyamoya}
-                onChange={e => setMoyamoya(e.target.value)}
-                maxLength={2000}
-                style={{ minHeight: '140px' }}
-              />
-              <p className="text-right text-xs mt-1.5" style={{ color: 'var(--color-text-dim)' }}>
-                {moyamoya.length}/2000
+              <p className="text-[11px] mb-3 leading-relaxed" style={{ color: 'var(--color-text-dim)' }}>
+                noteに書いた自分の悩みや思考を貼り付けてください。AIがこの内容を最も深く読み込みます。
               </p>
+              <div className="source-card" style={{ borderColor: 'rgba(208, 115, 74, 0.25)', borderWidth: '2px' }}>
+                <textarea
+                  className="textarea-auto"
+                  placeholder="自分のnoteから、今抱えている悩み・もやもや・葛藤を貼り付けてください。長くても大丈夫。あなた自身の言葉がインサイトの核になります..."
+                  value={moyamoya}
+                  onChange={e => setMoyamoya(e.target.value)}
+                  maxLength={5000}
+                  style={{ minHeight: '180px', border: 'none', padding: '4px 0', background: 'transparent' }}
+                />
+                <p className="text-right text-[10px] mt-1" style={{ color: 'var(--color-text-dim)' }}>
+                  {moyamoya.length}/5000
+                </p>
+              </div>
             </section>
 
-            {/* noteソースリスト */}
+            {/* noteで見つけた気になる言葉 */}
             <section>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-bold tracking-wider uppercase" style={{ color: 'var(--color-text-muted)' }}>
-                  📝 惹かれた他者の言葉
+                  📝 noteで見つけた気になる言葉
                 </label>
                 <button
                   onClick={addSource}
@@ -221,13 +224,17 @@ export default function WorkspacePage() {
                   ＋ 追加
                 </button>
               </div>
+              <p className="text-[11px] mb-3 leading-relaxed" style={{ color: 'var(--color-text-dim)' }}>
+                他の人のnoteで心に引っかかった文章やフレーズを貼り付けてください。
+              </p>
 
               <div className="flex flex-col gap-4">
                 {sources.map((source, index) => (
                   <div key={source.id} className="source-card">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-bold" style={{ color: 'var(--color-text-dim)' }}>
-                        note {index + 1}
+                    {/* メイン：気になる言葉（最優先） */}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--g-violet)' }}>
+                        気になる言葉 {sources.length > 1 ? index + 1 : ''}
                       </span>
                       {sources.length > 1 && (
                         <button
@@ -239,25 +246,22 @@ export default function WorkspacePage() {
                         </button>
                       )}
                     </div>
-                    <div className="flex flex-col gap-2.5">
+                    <textarea
+                      className="textarea-auto"
+                      placeholder="noteで見つけた、心に残った文章やフレーズをここに..."
+                      value={source.excerpt}
+                      onChange={e => updateSource(source.id, 'excerpt', e.target.value)}
+                      style={{ minHeight: '100px', border: 'none', padding: '4px 0', background: 'transparent', fontSize: '14px', lineHeight: '1.8' }}
+                    />
+
+                    {/* サブ：URL（任意・折りたたみ的） */}
+                    <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
                       <input
-                        className="input-field text-xs"
-                        placeholder="URL（任意）"
+                        className="input-field text-[11px]"
+                        placeholder="元noteのURL（任意）"
                         value={source.url}
                         onChange={e => updateSource(source.id, 'url', e.target.value)}
-                      />
-                      <input
-                        className="input-field text-xs"
-                        placeholder="タイトル（任意）"
-                        value={source.note_title}
-                        onChange={e => updateSource(source.id, 'note_title', e.target.value)}
-                      />
-                      <textarea
-                        className="textarea-auto text-sm"
-                        placeholder="心に残った文章・フレーズを貼り付けてください..."
-                        value={source.excerpt}
-                        onChange={e => updateSource(source.id, 'excerpt', e.target.value)}
-                        style={{ minHeight: '80px' }}
+                        style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.3)' }}
                       />
                     </div>
                   </div>
@@ -274,7 +278,7 @@ export default function WorkspacePage() {
               {analyzing ? (
                 <span className="analyzing-pulse">🔭 深層を探索中...</span>
               ) : (
-                '🧭 Compassで抽出'
+                '🧭 Compassで考察する'
               )}
             </button>
 
@@ -292,12 +296,14 @@ export default function WorkspacePage() {
             {!insight && !analyzing && (
               <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center">
                 <div className="text-6xl mb-6 opacity-20">🧭</div>
-                <h2 className="text-lg font-bold mb-2" style={{ color: 'var(--color-text-dim)' }}>
+                <h2 className="text-lg font-bold mb-3" style={{ color: 'var(--color-text-dim)' }}>
                   あなたの指針を見つけよう
                 </h2>
                 <p className="text-sm leading-relaxed max-w-sm" style={{ color: 'var(--color-text-dim)' }}>
-                  左のパネルに「もやもや」と「惹かれた他者の言葉」を入力して、
-                  <br />Compassで抽出してみてください。
+                  左のパネルで
+                  <br />「自分のnote（悩み）」と
+                  <br />「noteで見つけた気になる言葉」を
+                  <br />入力して考察してみてください。
                 </p>
               </div>
             )}
@@ -309,7 +315,7 @@ export default function WorkspacePage() {
                   深層を探索しています
                 </h2>
                 <p className="text-sm" style={{ color: 'var(--color-text-dim)' }}>
-                  あなたの言葉と他者の知見を横断分析中...
+                  あなたの悩みと、noteで見つけた言葉を横断分析中...
                 </p>
               </div>
             )}

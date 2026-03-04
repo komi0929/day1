@@ -148,19 +148,19 @@ export default function LibraryDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </section>
 
-          {/* ベースとなったnote群 */}
+          {/* noteで見つけた気になる言葉 */}
           <section className="mb-10">
             <h3 className="text-[10px] font-extrabold tracking-[2px] uppercase mb-4" style={{ color: 'var(--color-text-dim)' }}>
-              📝 ベースとなったnote
+              📝 noteで見つけた気になる言葉
             </h3>
             <div className="flex flex-col gap-3">
               {record.note_sources.map((src) => (
                 <div key={src.id} className="source-card">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-bold" style={{ color: 'var(--g-violet)' }}>
-                      {src.note_title || '(無題)'}
-                    </span>
-                    {src.url && (
+                  <p className="text-sm leading-[1.8]" style={{ color: 'var(--color-text)' }}>
+                    {src.excerpt}
+                  </p>
+                  {src.url && (
+                    <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--color-border)' }}>
                       <a
                         href={src.url}
                         target="_blank"
@@ -168,13 +168,10 @@ export default function LibraryDetailPage({ params }: { params: Promise<{ id: st
                         className="text-[10px] underline"
                         style={{ color: 'var(--color-text-dim)' }}
                       >
-                        元記事 →
+                        元note →
                       </a>
-                    )}
-                  </div>
-                  <p className="text-xs leading-[1.8]" style={{ color: 'var(--color-text-muted)' }}>
-                    {src.excerpt}
-                  </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

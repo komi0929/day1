@@ -11,7 +11,7 @@ interface InsightRecord {
   insight_thread: string;
   original_moyamoya: string;
   created_at: string;
-  note_sources: { note_title: string; url: string }[];
+  note_sources: { note_title: string; url: string; excerpt: string }[];
 }
 
 export default function LibraryPage() {
@@ -35,7 +35,7 @@ export default function LibraryPage() {
         .from('insights')
         .select(`
           id, insight_title, insight_thread, original_moyamoya, created_at,
-          note_sources ( note_title, url )
+          note_sources ( note_title, url, excerpt )
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
@@ -123,16 +123,16 @@ export default function LibraryPage() {
                   {record.insight_thread}
                 </p>
 
-                {/* Source index tags */}
+                {/* 気になる言葉のプレビュー */}
                 {record.note_sources && record.note_sources.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {record.note_sources.map((src, i) => (
                       <span
                         key={i}
-                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                        className="text-[10px] font-medium px-2 py-0.5 rounded-full line-clamp-1"
                         style={{ background: 'rgba(139, 107, 181, 0.10)', color: 'var(--g-violet)' }}
                       >
-                        📝 {src.note_title || 'note'}
+                        &ldquo;{(src.excerpt || src.note_title || 'note').slice(0, 25)}{(src.excerpt || src.note_title || '').length > 25 ? '…' : ''}&rdquo;
                       </span>
                     ))}
                   </div>
