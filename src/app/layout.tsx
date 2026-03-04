@@ -14,35 +14,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "day1 — 今日の朝を、学びではじめよう",
-  description: "1日1記事、知識を自分のものに。朝活のような学習習慣をつくるアプリ。",
+  title: "Compass — もやもやから、自分だけの指針を見つける",
+  description: "他者の言葉と自分のもやもやを掛け合わせ、AIが深層心理を言語化。あなただけのNow/Be/Doを導き出すインサイト・ライブラリ。",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "day1",
+    title: "Compass",
   },
   openGraph: {
-    title: "day1 — 今日の朝を、学びではじめよう",
-    description: "noteの記事を自分のものにする。毎朝の学習習慣アプリ。",
-    url: "https://day1.hitokoto.tech",
-    siteName: "day1",
+    title: "Compass — もやもやから、自分だけの指針を見つける",
+    description: "他者の言葉と自分のもやもやを掛け合わせ、深層心理を言語化するインサイト・ライブラリ。",
+    siteName: "Compass",
     type: "website",
     locale: "ja_JP",
-    images: [
-      {
-        url: "https://day1.hitokoto.tech/og-image.png",
-        width: 1200,
-        height: 1200,
-        alt: "day1 — 今日の朝を、学びではじめよう",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "day1 — 今日の朝を、学びではじめよう",
-    description: "noteの記事を自分のものにする。毎朝の学習習慣アプリ。",
-    images: ["https://day1.hitokoto.tech/og-image.png"],
   },
 };
 
@@ -62,12 +47,10 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-        <link rel="icon" href="/icons/icon-192.png" type="image/png" />
         <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-dvh`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {/* Grainy noise overlay — fixed, covers entire viewport */}
         <div className="noise-bg" aria-hidden="true" />

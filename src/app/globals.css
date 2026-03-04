@@ -58,10 +58,8 @@ input, textarea, button {
 
 /* ═══════════════════════════════════════════════
    ノイズテクスチャ — 「ザラザラ」アナログ質感
-   ノイズ粒子を大きく・密度を高く・不透明度を強く
    ═══════════════════════════════════════════════ */
 
-/* Layer 1: 粗いノイズ (メインのザラザラ感) — 微動アニメーション付き */
 .noise-bg {
   position: fixed;
   inset: 0;
@@ -83,7 +81,6 @@ input, textarea, button {
   animation: noiseDrift1 8s ease-in-out infinite alternate;
 }
 
-/* Layer 2: 細かいノイズ (追加のテクスチャ) — 逆方向に微動 */
 .noise-bg::after {
   content: '';
   position: absolute;
@@ -97,7 +94,7 @@ input, textarea, button {
   animation: noiseDrift2 12s ease-in-out infinite alternate;
 }
 
-/* ─── グレイニーグラデーション背景バリエーション（ライト版） ─── */
+/* ─── グレイニーグラデーション背景バリエーション ─── */
 .gradient-main {
   background:
     radial-gradient(ellipse at 20% 0%, rgba(232, 101, 90, 0.20) 0%, transparent 55%),
@@ -132,7 +129,7 @@ input, textarea, button {
     var(--color-bg);
 }
 
-/* ─── グラスモーフィズムカード（ライト版） ─── */
+/* ─── グラスモーフィズムカード ─── */
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -215,26 +212,6 @@ input, textarea, button {
   background: rgba(255, 255, 255, 0.70);
 }
 
-/* ─── タグ / バッジ ─── */
-.badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 999px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.badge-do {
-  background: rgba(91, 120, 196, 0.12);
-  color: #4A6AB0;
-}
-
-.badge-be {
-  background: rgba(139, 107, 181, 0.12);
-  color: #7B5EA8;
-}
-
 /* ─── テキストグラデーション ─── */
 .text-gradient {
   background: linear-gradient(135deg, var(--g-coral), var(--g-peach), var(--g-rose));
@@ -264,9 +241,167 @@ input, textarea, button {
 }
 
 /* ═══════════════════════════════════════════════
+   Compass — スプリットビュー レイアウト
+   ═══════════════════════════════════════════════ */
+
+.workspace-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  min-height: 100dvh;
+}
+
+.workspace-panel {
+  height: 100dvh;
+  overflow-y: auto;
+  padding: 32px;
+}
+
+.workspace-panel-left {
+  border-right: 1px solid var(--color-border);
+}
+
+/* ─── note source カード ─── */
+.source-card {
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 16px;
+  transition: all 0.2s;
+}
+
+.source-card:hover {
+  background: rgba(255, 255, 255, 0.60);
+  box-shadow: 0 2px 8px rgba(44, 37, 32, 0.06);
+}
+
+/* ─── インサイト表示 ─── */
+.insight-section {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.insight-section:last-child {
+  border-bottom: none;
+}
+
+.insight-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.insight-label-thread { color: var(--g-violet); }
+.insight-label-now { color: var(--g-teal); }
+.insight-label-be { color: var(--g-blue); }
+.insight-label-do { color: var(--g-coral); }
+
+/* ─── ライブラリカード ─── */
+.library-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 24px;
+  transition: all 0.25s;
+  cursor: pointer;
+}
+
+.library-card:hover {
+  background: var(--color-surface-raised);
+  box-shadow: 0 8px 24px rgba(44, 37, 32, 0.08);
+  transform: translateY(-2px);
+}
+
+/* ─── ナビバー ─── */
+.compass-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: rgba(253, 246, 238, 0.80);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* ─── テキストエリア自動リサイズ ─── */
+.textarea-auto {
+  background: rgba(255, 255, 255, 0.50);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+  resize: none;
+  min-height: 120px;
+}
+
+.textarea-auto::placeholder {
+  color: var(--color-text-dim);
+}
+
+.textarea-auto:focus {
+  border-color: rgba(208, 115, 74, 0.40);
+  background: rgba(255, 255, 255, 0.70);
+}
+
+/* ─── 分析中アニメーション ─── */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.analyzing-pulse {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* ─── フェードイン ─── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+/* ─── レスポンシブ: タブレット以下はスタック ─── */
+@media (max-width: 1024px) {
+  .workspace-layout {
+    grid-template-columns: 1fr;
+  }
+  .workspace-panel {
+    height: auto;
+    min-height: auto;
+  }
+  .workspace-panel-left {
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+}
+
+/* ═══════════════════════════════════════════════
    ノイズ微動アニメーション
-   2層を異なる速度・方向でゆっくり移動させ
-   「生きた」テクスチャ感を演出
    ═══════════════════════════════════════════════ */
 @keyframes noiseDrift1 {
   0% {

@@ -1,37 +1,22 @@
 {
-  "name": "day1 — 今日の朝を、学びではじめよう",
-  "short_name": "day1",
-  "description": "1日1記事、知識を自分のものに。朝活のような学習習慣をつくるアプリ。",
-  "start_url": "/dashboard",
+  "name": "Compass",
+  "short_name": "Compass",
+  "description": "もやもやから、自分だけの指針を見つける。インサイト・ライブラリ。",
+  "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "theme_color": "#FDF6EE",
   "background_color": "#FDF6EE",
-  "lang": "ja",
-  "id": "/",
-  "scope": "/",
+  "theme_color": "#FDF6EE",
+  "orientation": "any",
   "icons": [
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     }
-  ],
-  "share_target": {
-    "action": "/share",
-    "method": "GET",
-    "params": {
-      "url": "url",
-      "title": "title",
-      "text": "text"
-    }
-  },
-  "categories": ["education", "productivity"]
+  ]
 }
