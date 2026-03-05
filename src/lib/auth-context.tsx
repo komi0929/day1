@@ -9,6 +9,8 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signInWithGoogle: () => Promise<{ error: string | null }>;
+  signUpWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -48,13 +50,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message ?? null };
   }, []);
 
+  const signUpWithEmail = useCallback(async (email: string, password: string) => {
+    if (!supabase) return { error: 'まだ準備ができていません' };
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/library` },
+    });
+    if (error) {
+      if (error.message.includes('already registered')) {
+        return { error: 'このメールアドレスはすでに登録されています。ログインをお試しください。' };
+      }
+      if (error.message.includes('password')) {
+        return { error: 'パスワードは6文字以上でお願いします。' };
+      }
+      return { error: 'うまくいきませんでした。もう一度お試しください。' };
+    }
+    return { error: null };
+  }, []);
+
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    if (!supabase) return { error: 'まだ準備ができていません' };
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      if (error.message.includes('Invalid login')) {
+        return { error: 'メールアドレスまたはパスワードが違うようです。' };
+      }
+      return { error: 'うまくいきませんでした。もう一度お試しください。' };
+    }
+    return { error: null };
+  }, []);
+
   const signOut = useCallback(async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signInWithGoogle, signUpWithEmail, signInWithEmail, signOut }}>
       {children}
     </AuthContext.Provider>
   );
@@ -67,3 +100,4 @@ export function useAuth() {
   }
   return context;
 }
+
