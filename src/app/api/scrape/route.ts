@@ -6,7 +6,7 @@ export async function POST(req: Request) {
 
     if (!url || typeof url !== 'string') {
       return NextResponse.json(
-        { error: 'URL_REQUIRED', message: 'URLを入力してください。' },
+        { error: 'URL_REQUIRED', message: 'noteのURLを教えてください。' },
         { status: 400 }
       );
     }
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     const noteUrlPattern = /^https?:\/\/(note\.com|note\.mu)\/.+/i;
     if (!noteUrlPattern.test(url.trim())) {
       return NextResponse.json(
-        { error: 'INVALID_URL', message: 'note.comのURLを入力してください。' },
+        { error: 'INVALID_URL', message: 'note.comの記事URLを教えてくださいね。' },
         { status: 400 }
       );
     }
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: 'FETCH_FAILED', message: 'noteの取得に失敗しました。本文を直接貼り付けてください。' },
+        { error: 'FETCH_FAILED', message: 'ごめんなさい、うまく読み取れませんでした。お手数ですが、本文を直接教えてもらえませんか？' },
         { status: 422 }
       );
     }
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
 
     if (!bodyText || bodyText.length < 50) {
       return NextResponse.json(
-        { error: 'SCRAPE_FAILED', message: '本文の取得に失敗しました。本文を直接貼り付けてください。' },
+        { error: 'SCRAPE_FAILED', message: 'ごめんなさい、うまく読み取れませんでした。お手数ですが、本文を直接教えてもらえませんか？' },
         { status: 422 }
       );
     }
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     console.error('Scrape API error:', error);
     return NextResponse.json(
-      { error: 'SCRAPE_FAILED', message: 'noteの取得に失敗しました。本文を直接貼り付けてください。' },
+      { error: 'SCRAPE_FAILED', message: 'ごめんなさい、うまく読み取れませんでした。お手数ですが、本文を直接教えてもらえませんか？' },
       { status: 422 }
     );
   }

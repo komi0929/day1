@@ -59,7 +59,7 @@ export default function Home() {
           setLoading(false);
           return;
         }
-        throw new Error(data.message || 'エラーが発生しました');
+        throw new Error(data.message || 'うまくいきませんでした。もう一度お試しください。');
       }
 
       const data = await res.json();
@@ -67,7 +67,7 @@ export default function Home() {
       setNoteTitle(data.title || '');
       startRecommendation(data.body, data.title || '');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setError(err instanceof Error ? err.message : 'うまくいきませんでした。もう一度お試しください。');
       setLoading(false);
     }
   }, [noteUrl, loading]);
@@ -75,7 +75,7 @@ export default function Home() {
   /* ─── Fallback text submit ─── */
   const handleFallbackSubmit = useCallback(() => {
     if (!noteBody.trim() || noteBody.trim().length < 50) {
-      setError('もう少し長い本文を入力してください（50文字以上）');
+      setError('もう少しだけ文章を教えてください（50文字以上お願いします）');
       return;
     }
     startRecommendation(noteBody, noteTitle);
@@ -96,7 +96,7 @@ export default function Home() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.message || '推薦の生成に失敗しました');
+        throw new Error(data.message || 'ごめんなさい、本を探せませんでした。もう一度お試しください。');
       }
 
       const data = await res.json();
@@ -106,7 +106,7 @@ export default function Home() {
       setExpandedCard(null);
       setPhase('results');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '推薦の生成に失敗しました');
+      setError(err instanceof Error ? err.message : 'ごめんなさい、本を探せませんでした。もう一度お試しください。');
       setPhase('input');
     } finally {
       setLoading(false);
@@ -186,11 +186,12 @@ export default function Home() {
               <div className="mb-10 fade-in-up">
                 <div className="text-5xl mb-5 opacity-80">📖</div>
                 <h1 className="text-3xl md:text-4xl font-black text-gradient tracking-tight mb-4">
-                  あなたのための1冊
+                  compass
                 </h1>
                 <p className="text-sm leading-[1.9] max-w-sm mx-auto" style={{ color: 'var(--color-text-muted)' }}>
-                  noteに綴ったあなたの思考をAIが深く読み解き、<br />
-                  今のあなたに寄り添う<strong style={{ color: 'var(--g-coral)' }}>「運命の本」</strong>を見つけます。
+                  あなたの書いたnoteから<strong style={{ color: 'var(--g-coral)' }}>「今読んでほしい一冊」</strong>をおすすめするアプリ。<br />
+                  URLをひとつ入れるだけで、悩みや願いを読み解き、<br />
+                  あなたの背中をそっと押してくれる本を、お手紙とともにお届けします。
                 </p>
               </div>
 
@@ -201,7 +202,7 @@ export default function Home() {
                     id="note-url-input"
                     type="url"
                     className="input-field w-full"
-                    placeholder="https://note.com/..."
+                    placeholder="あなたのnoteのURLを教えてください"
                     value={noteUrl}
                     onChange={e => setNoteUrl(e.target.value)}
                     onKeyDown={e => {
@@ -217,9 +218,9 @@ export default function Home() {
                   className="btn-primary w-full"
                 >
                   {loading ? (
-                    <span className="analyzing-pulse">解析中...</span>
+                    <span className="analyzing-pulse">お手紙を準備しています…</span>
                   ) : (
-                    '本を探す'
+                    '本とお手紙を受け取る'
                   )}
                 </button>
               </div>
@@ -243,12 +244,12 @@ export default function Home() {
                     color: 'var(--color-text)',
                     border: '1px solid rgba(232, 197, 71, 0.20)',
                   }}>
-                    URLからの取得に失敗しました。本文を直接貼り付けてください。
+                    ごめんなさい、うまく読み取れませんでした。お手数ですが、こちらに直接文章を教えてもらえませんか？
                   </div>
                   <textarea
                     id="fallback-textarea"
                     className="textarea-auto w-full mb-3"
-                    placeholder="noteの本文をここに貼り付けてください..."
+                    placeholder="ここにnoteの文章を貼り付けてください"
                     value={noteBody}
                     onChange={e => setNoteBody(e.target.value)}
                     rows={8}
@@ -259,7 +260,7 @@ export default function Home() {
                     disabled={noteBody.trim().length < 50 || loading}
                     className="btn-primary w-full"
                   >
-                    この内容で本を探す
+                    この文章で本を探す
                   </button>
                 </div>
               )}
@@ -276,22 +277,22 @@ export default function Home() {
                 <div className="how-step fade-in-up" style={{ animationDelay: '0.1s' }}>
                   <div className="how-step-num">1</div>
                   <div>
-                    <h3 className="how-step-title">noteのURLを貼る</h3>
-                    <p className="how-step-desc">あなたが書いたnoteの記事URLを入力してください。悩み、考えごと、日記、どんな記事でも構いません。</p>
+                    <h3 className="how-step-title">noteのURLをひとつ</h3>
+                    <p className="how-step-desc">あなたが書いたnoteの記事URLを教えてください。悩み、考えごと、日記——どんな記事でも大丈夫です。</p>
                   </div>
                 </div>
                 <div className="how-step fade-in-up" style={{ animationDelay: '0.2s' }}>
                   <div className="how-step-num">2</div>
                   <div>
-                    <h3 className="how-step-title">AIが深く読み解く</h3>
-                    <p className="how-step-desc">あなたの文章の行間から、立場・悩み・課題感・隠れた願望をAIが推論します。約30秒の間、あなたの言葉が画面に浮かびます。</p>
+                    <h3 className="how-step-title">言葉をじっくり読む</h3>
+                    <p className="how-step-desc">あなたの文章の行間から、悩みや願い、まだ言葉にできていない想いを丁寧に読み解きます。30秒ほど、あなたの言葉が静かに画面に浮かびます。</p>
                   </div>
                 </div>
                 <div className="how-step fade-in-up" style={{ animationDelay: '0.3s' }}>
                   <div className="how-step-num">3</div>
                   <div>
-                    <h3 className="how-step-title">運命の本に出会う</h3>
-                    <p className="how-step-desc">あなたのために選ばれた本が、編集者からの手紙とともに届きます。なぜこの本なのか——その理由は、あなたの言葉の中にあります。</p>
+                    <h3 className="how-step-title">一冊と出会う</h3>
+                    <p className="how-step-desc">あなたのために選ばれた本が、お手紙とともに届きます。なぜこの本なのか——その理由は、あなたの言葉の中にあります。</p>
                   </div>
                 </div>
               </div>
@@ -320,10 +321,10 @@ export default function Home() {
                 <div className="book-spine" />
               </div>
               <p className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>
-                30秒ほどかかります、ゆっくりお待ちください
+                あなたのための一冊をじっくり探しています
               </p>
               <p className="text-[11px]" style={{ color: 'var(--color-text-dim)' }}>
-                あなたのnoteを深く読み解いています...
+                30秒ほど、ゆっくりとお待ちください
               </p>
             </div>
             <div className="fragment-container">
@@ -390,7 +391,7 @@ function ResultsView({
         <p className="text-[10px] font-bold tracking-[3px] uppercase mb-2" style={{ color: 'var(--color-text-dim)' }}>
           {currentPage + 1} / {totalPages}
         </p>
-        <h2 className="text-xl font-bold text-gradient">あなたのための本</h2>
+        <h2 className="text-xl font-bold text-gradient">あなたへのお手紙と一冊</h2>
       </header>
 
       <div ref={containerRef} className="result-grid px-4 md:px-8"
@@ -407,15 +408,15 @@ function ResultsView({
       <div className="px-6 mt-8 max-w-lg mx-auto">
         {!isLastPage ? (
           <button id="load-more-button" onClick={handleNextPage} className="btn-ghost w-full">
-            他の本も見てみる →
+            ほかの本も見てみる →
           </button>
         ) : (
           <div className="text-center fade-in-up">
             <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--color-text-muted)' }}>
-              別のnoteでも、<br />あなたの指標になる本を探してみませんか？
+              今回はここまで。<br />また別のnoteを書かれたら、いつでもここへいらしてくださいね。<br />あなたを導く羅針盤となる本を、一緒にお探しします。
             </p>
             <button id="restart-button" onClick={handleReset} className="btn-primary w-full max-w-xs mx-auto">
-              もう一度探す
+              別のnoteで本を探す
             </button>
           </div>
         )}
@@ -449,7 +450,7 @@ function BookCard({ book, index, isExpanded, onToggle }: {
       <p className="book-oneliner">「{book.oneliner}」</p>
 
       <button onClick={onToggle} className="book-expand-btn">
-        {isExpanded ? '閉じる' : '推薦文を読む'}
+        {isExpanded ? '閉じる' : 'お手紙を読む'}
         <span className="expand-arrow" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
       </button>
 

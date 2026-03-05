@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const SYSTEM_PROMPT = `あなたは、人の心を深く読み解く天才的な編集者であり、文学の海を熟知するキュレーターです。
+const SYSTEM_PROMPT = `あなたは、ユーザーの言葉を深く愛するプロの編集者です。
 
 ## ミッション
-ユーザーが書いたnote本文を徹底的に読み込み、その人の立場、悩み、課題感、そして隠された願望を行間から深く推論してください。
-その推論に基づき、「この人が今まさに読むべき運命の1冊」を9冊分リストアップしてください。
+ユーザーが書いたnote本文をじっくり読み込み、その人の立場、悩み、課題感、そしてまだ言葉にできていない願いを行間から丁寧に読み解いてください。
+その上で、「この人が今まさに読むべき一冊」を9冊分リストアップしてください。
 
 ## 推薦の鉄則
 1. **既知すぎない名著・良書を選ぶ**：定番中の定番（7つの習慣、嫌われる勇気 等）は避け、実在する具体的な書籍を推薦する
@@ -19,11 +19,11 @@ const SYSTEM_PROMPT = `あなたは、人の心を深く読み解く天才的な
     {
       "title": "正確な書籍タイトル",
       "author": "著者名",
-      "label": "noteから導かれる一言オリジナルラベル（例: '立ち止まる勇気'）。固定カテゴリではなく、noteの内容に即した言葉",
+      "label": "noteから導かれる一言オリジナルラベル（例: '足がとまるあなたへ'、'そっと勇気をくれる1冊'）。固定カテゴリではなく、noteの内容に即した温かい言葉",
       "headline": "なぜおすすめなのかのタイトル（例: '足がとまるあなたに勇気を与えてくれる1冊'）",
       "oneliner": "20〜40字のヒトコト推薦（キャッチーで引きのある一文）",
       "summary": "客観的な書籍概要（100〜150字。この本がどんな本なのかを簡潔に）",
-      "letter": "エモーショナルな手紙形式の推薦文（200〜400字）。必ずnote本文の具体的な言葉を引用し、「あなたの『〇〇』という言葉から、こんな葛藤を感じました。だからこそ…」と1対1で語りかける構成にする。編集者が深夜に万年筆で書いた手紙のような温度感で。"
+      "letter": "手紙形式の推薦文（200〜400字）。必ずユーザーのnote本文の具体的な言葉を引用し、『「〇〇」というあなたの言葉から、こんな想いを受け取りました。だからこそ…』という構成で1対1で語りかけてください。『AIとして分析しました』『推論の結果』といった言葉は絶対に避け、体温を感じる文章にしてください。"
     }
   ],
   "fragments": ["note本文から印象的な一節を5〜8つ抽出（待機画面で表示するため）。各20〜60字程度"]
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
     if (!noteBody || typeof noteBody !== 'string' || noteBody.trim().length < 50) {
       return NextResponse.json(
-        { error: 'VALIDATION_ERROR', message: '本文が短すぎます。もう少し長い本文を入力してください。' },
+        { error: 'VALIDATION_ERROR', message: 'もう少しだけ文章を教えてください（50文字以上お願いします）' },
         { status: 400 }
       );
     }
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'SERVER_CONFIG_ERROR', message: 'AI設定エラーです。' },
+        { error: 'SERVER_CONFIG_ERROR', message: '申し訳ありません、ただいま準備中です。しばらくしてからもう一度お試しください。' },
         { status: 500 }
       );
     }
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       },
     });
 
-    const userPrompt = `以下のnote記事を深く読み込み、この著者の立場・悩み・課題感・隠れた願望を推論した上で、「運命の9冊」を推薦してください。
+    const userPrompt = `以下のnote記事をじっくり読み込み、この著者の立場・悩み・課題感・まだ言葉にできていない願いを読み解いた上で、「今読んでほしい一冊」を9冊推薦してください。
 
 ━━━━━━━━━━━━━━━━
 ■ note記事タイトル: ${noteTitle || '（タイトルなし）'}
@@ -86,7 +86,7 @@ ${noteBody.trim().slice(0, 8000)}
 - 9冊すべて実在する書籍であること（架空の本は禁止）
 - 和書・洋書（翻訳書）いずれも可
 - 定番すぎるベストセラーは避け、知る人ぞ知る名著・良書を優先
-- note記事の具体的な言葉を引用した手紙形式の推薦文を各本に書く
+- note記事の具体的な言葉を引用した手紙形式の推薦文を各本に書く。「AI」「推論」「分析」といった機械的な言葉は絶対に使わない
 - fragmentsはnote本文から印象的な一節を5〜8つ抽出する
 
 指定されたJSON形式のみを出力してください。`;
@@ -126,9 +126,8 @@ ${noteBody.trim().slice(0, 8000)}
     });
   } catch (error: unknown) {
     console.error('Recommend API error:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'RECOMMEND_FAILED', message: `推薦に失敗しました: ${message}` },
+      { error: 'RECOMMEND_FAILED', message: 'ごめんなさい、本を探せませんでした。もう一度お試しください。' },
       { status: 500 }
     );
   }

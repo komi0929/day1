@@ -6,13 +6,13 @@ export default function ErrorPage() {
       <div className="text-center">
         <div className="text-6xl mb-6 opacity-30">⚠️</div>
         <h2 className="text-xl font-bold mb-3" style={{ color: 'var(--color-text-muted)' }}>
-          エラーが発生しました
+          ごめんなさい、うまくいきませんでした
         </h2>
         <button
           onClick={() => window.location.reload()}
           className="btn-primary mt-4"
         >
-          再読み込み
+          もう一度試す
         </button>
       </div>
     </main>

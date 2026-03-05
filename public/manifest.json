@@ -1,7 +1,7 @@
 {
-  "name": "あなたのための1冊",
-  "short_name": "BookFinder",
-  "description": "noteから運命の本を見つける",
+  "name": "compass",
+  "short_name": "compass",
+  "description": "あなたの書いたnoteから「今読んでほしい一冊」をお届けします",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1A1512",

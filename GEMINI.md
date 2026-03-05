@@ -1,4 +1,4 @@
-# notememo — AI開発ルール
+# Compass — AI開発ルール
 
 ## 自動実行ポリシー
 

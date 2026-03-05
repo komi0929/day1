@@ -10,7 +10,7 @@ export default function NotFound() {
       <div className="text-center">
         <div className="text-6xl mb-6 opacity-30">📖</div>
         <h2 className="text-xl font-bold mb-3" style={{ color: 'var(--color-text-muted)' }}>
-          ページが見つかりません
+          お探しのページは見つかりませんでした
         </h2>
         <button onClick={() => router.push('/')} className="btn-primary mt-4">
           トップへ戻る

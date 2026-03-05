@@ -13,18 +13,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "あなたのための1冊 — noteから運命の本を見つける",
-  description: "noteに書いたあなたの思考をAIが徹底的に読み解き、あなたの今に寄り添う「運命の1冊」をリコメンド。深夜の私設図書館から、編集者があなたへ手紙を添えて本を届けます。",
+  title: "compass | あなたのnoteから「今読んでほしい一冊」をお届けします",
+  description: "compassは、あなたの書いたnoteから「今読んでほしい一冊」をおすすめするアプリ。URLをひとつ入れるだけで、悩みや願いを読み解き、あなたの背中をそっと押してくれる本を、お手紙とともにお届けします。",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "あなたのための1冊",
+    title: "compass",
   },
   openGraph: {
-    title: "あなたのための1冊 — noteから運命の本を見つける",
-    description: "noteに書いたあなたの思考をAIが読み解き、運命の1冊を見つけます。",
-    siteName: "あなたのための1冊",
+    title: "compass | あなたのnoteから「今読んでほしい一冊」をお届けします",
+    description: "compassは、あなたの書いたnoteから「今読んでほしい一冊」をおすすめするアプリ。URLをひとつ入れるだけで、悩みや願いを読み解き、あなたの背中をそっと押してくれる本を、お手紙とともにお届けします。",
+    siteName: "compass",
     type: "website",
     locale: "ja_JP",
   },
