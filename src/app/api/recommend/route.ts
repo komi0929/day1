@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createAuthClient } from '@/lib/supabase';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 const SYSTEM_PROMPT = `あなたは、ユーザーの言葉を深く愛するプロの編集者です。
 
@@ -47,7 +48,26 @@ interface BookResult extends BookFromAI {
 
 export async function POST(req: Request) {
   try {
-    const { body: noteBody, title: noteTitle, token: authToken } = await req.json();
+    // Check request body size (max 16KB)
+    const contentLength = req.headers.get('content-length');
+    if (contentLength && parseInt(contentLength) > 16384) {
+      return NextResponse.json(
+        { error: 'PAYLOAD_TOO_LARGE', message: 'リクエストが大きすぎます。' },
+        { status: 413 }
+      );
+    }
+
+    // Rate limit: 3 requests per minute per IP (LLM calls are expensive)
+    const ip = getClientIp(req);
+    const { success: rateLimitOk } = rateLimit(`recommend:${ip}`, { maxRequests: 3, windowMs: 60_000 });
+    if (!rateLimitOk) {
+      return NextResponse.json(
+        { error: 'RATE_LIMITED', message: '少しお時間をおいてから、もう一度お試しください。' },
+        { status: 429 }
+      );
+    }
+
+    const { body: noteBody, title: noteTitle } = await req.json();
 
     if (!noteBody || typeof noteBody !== 'string' || noteBody.trim().length < 50) {
       return NextResponse.json(
@@ -77,7 +97,9 @@ export async function POST(req: Request) {
 
     // Fetch past heart profiles for returning users (continuity counseling)
     let pastContext = '';
-    if (authToken) {
+    const authHeader = req.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const authToken = authHeader.replace('Bearer ', '');
       try {
         const supabase = createAuthClient(authToken);
         if (supabase) {

@@ -1,5 +1,15 @@
 # Changelog
 
+## [2026-03-06] — セキュリティ監査・修正
+
+### 🔒 Security
+- 認証トークンをリクエストBodyからAuthorizationヘッダーに移行（ログ/キャッシュ漏洩防止）
+- Content-Security-Policy ヘッダー追加（XSS防止、リソース読み込み制限）
+- リクエストボディサイズ制限追加（recommend: 16KB上限）
+- レートリミッター導入（scrape: 5回/分、recommend: 3回/分、IP別）
+- XSS監査完了（dangerouslySetInnerHTML不使用を確認）
+- 全認証APIでgetUser()による検証を確認
+
 ## [2026-03-06] — メールアドレス認証追加
 
 ### ✨ Feature

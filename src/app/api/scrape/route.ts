@@ -1,7 +1,18 @@
 import { NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(req: Request) {
   try {
+    // Rate limit: 5 requests per minute per IP
+    const ip = getClientIp(req);
+    const { success } = rateLimit(`scrape:${ip}`, { maxRequests: 5, windowMs: 60_000 });
+    if (!success) {
+      return NextResponse.json(
+        { error: 'RATE_LIMITED', message: '少しお時間をおいてから、もう一度お試しください。' },
+        { status: 429 }
+      );
+    }
+
     const { url } = await req.json();
 
     if (!url || typeof url !== 'string') {

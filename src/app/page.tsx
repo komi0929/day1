@@ -92,10 +92,15 @@ export default function Home() {
     setError(null);
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch('/api/recommend', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body, title, token: session?.access_token || null }),
+        headers,
+        body: JSON.stringify({ body, title }),
       });
 
       if (!res.ok) {
