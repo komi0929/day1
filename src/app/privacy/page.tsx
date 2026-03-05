@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 export default function PrivacyPage() {
   return (
-    <main className="min-h-dvh gradient-library">
+    <main className="min-h-dvh gradient-warm">
       <div className="max-w-2xl mx-auto px-5 py-10">
         <Link
           href="/"
@@ -18,7 +18,7 @@ export default function PrivacyPage() {
           プライバシーポリシー
         </h1>
 
-        <div className="card-library p-6 space-y-6 text-sm leading-relaxed" style={{ color: 'var(--color-text)' }}>
+        <div className="card p-6 space-y-6 text-sm leading-relaxed" style={{ color: 'var(--color-text)' }}>
 
           <section>
             <p>株式会社ヒトコト（以下「当社」）は、Webアプリケーション「あなたのための1冊」（以下「本サービス」）における個人情報の取扱いについて、以下の通りプライバシーポリシーを定めます。</p>
@@ -59,9 +59,9 @@ export default function PrivacyPage() {
             <h2 className="font-bold text-base mb-2">4. 外部サービスの利用</h2>
             <p>本サービスでは、以下の外部サービスを利用しています。各サービスのプライバシーポリシーをご確認ください。</p>
             <ul className="list-disc pl-5 space-y-1 mt-2">
-              <li><strong>Google Gemini API</strong>: AI書籍推薦の生成（<a href="https://policies.google.com/privacy" className="underline" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)' }}>プライバシーポリシー</a>）</li>
-              <li><strong>Google Books API</strong>: 書籍情報・表紙画像の取得（<a href="https://policies.google.com/privacy" className="underline" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)' }}>プライバシーポリシー</a>）</li>
-              <li><strong>Vercel</strong>: ホスティング（<a href="https://vercel.com/legal/privacy-policy" className="underline" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-accent)' }}>プライバシーポリシー</a>）</li>
+              <li><strong>Google Gemini API</strong>: AI書籍推薦の生成（<a href="https://policies.google.com/privacy" className="underline" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--g-coral)' }}>プライバシーポリシー</a>）</li>
+              <li><strong>Google Books API</strong>: 書籍情報・表紙画像の取得（<a href="https://policies.google.com/privacy" className="underline" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--g-coral)' }}>プライバシーポリシー</a>）</li>
+              <li><strong>Vercel</strong>: ホスティング（<a href="https://vercel.com/legal/privacy-policy" className="underline" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--g-coral)' }}>プライバシーポリシー</a>）</li>
             </ul>
           </section>
 
@@ -94,7 +94,7 @@ export default function PrivacyPage() {
             <p style={{ color: 'var(--color-text-muted)' }}>
               運営: 株式会社ヒトコト<br />
               代表: 小南優作<br />
-              お問い合わせ: <a href="mailto:y.kominami@hitokoto1.co.jp" className="underline" style={{ color: 'var(--color-accent)' }}>y.kominami@hitokoto1.co.jp</a>
+              お問い合わせ: <a href="mailto:y.kominami@hitokoto1.co.jp" className="underline" style={{ color: 'var(--g-coral)' }}>y.kominami@hitokoto1.co.jp</a>
             </p>
             <p className="mt-2" style={{ color: 'var(--color-text-dim)' }}>
               制定日: 2026年3月3日 / 改定日: 2026年3月5日

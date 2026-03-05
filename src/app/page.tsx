@@ -176,7 +176,7 @@ export default function Home() {
   };
 
   return (
-    <div className="gradient-library min-h-dvh">
+    <div className="gradient-warm min-h-dvh">
       {/* ═══ INPUT PHASE ═══ */}
       {phase === 'input' && (
         <main className="min-h-dvh">
@@ -184,23 +184,23 @@ export default function Home() {
           <section className="flex items-center justify-center px-4 pt-20 pb-12 md:pt-28 md:pb-16">
             <div className="max-w-lg w-full text-center">
               <div className="mb-10 fade-in-up">
-                <div className="text-5xl mb-5 opacity-70">📖</div>
-                <h1 className="text-3xl md:text-4xl font-black text-gradient-library tracking-tight mb-4">
+                <div className="text-5xl mb-5 opacity-80">📖</div>
+                <h1 className="text-3xl md:text-4xl font-black text-gradient tracking-tight mb-4">
                   あなたのための1冊
                 </h1>
                 <p className="text-sm leading-[1.9] max-w-sm mx-auto" style={{ color: 'var(--color-text-muted)' }}>
                   noteに綴ったあなたの思考をAIが深く読み解き、<br />
-                  今のあなたに寄り添う<strong style={{ color: 'var(--color-accent-bright)' }}>「運命の本」</strong>を見つけます。
+                  今のあなたに寄り添う<strong style={{ color: 'var(--g-coral)' }}>「運命の本」</strong>を見つけます。
                 </p>
               </div>
 
               {/* URL Input */}
               <div className="fade-in-up" style={{ animationDelay: '0.15s' }}>
-                <div className="card-library p-4 mb-4">
+                <div className="card p-4 mb-4">
                   <input
                     id="note-url-input"
                     type="url"
-                    className="input-library w-full"
+                    className="input-field w-full"
                     placeholder="https://note.com/..."
                     value={noteUrl}
                     onChange={e => setNoteUrl(e.target.value)}
@@ -214,7 +214,7 @@ export default function Home() {
                   id="submit-button"
                   onClick={handleSubmit}
                   disabled={!noteUrl.trim() || loading}
-                  className="btn-library w-full"
+                  className="btn-primary w-full"
                 >
                   {loading ? (
                     <span className="analyzing-pulse">解析中...</span>
@@ -227,9 +227,9 @@ export default function Home() {
               {/* Error */}
               {error && (
                 <div className="mt-4 p-3 text-xs rounded-lg text-left" style={{
-                  background: 'rgba(232, 101, 90, 0.12)',
-                  color: 'var(--g-coral)',
-                  border: '1px solid rgba(232, 101, 90, 0.2)',
+                  background: 'rgba(232, 101, 90, 0.08)',
+                  color: 'var(--color-danger)',
+                  border: '1px solid rgba(232, 101, 90, 0.15)',
                 }}>
                   {error}
                 </div>
@@ -239,15 +239,15 @@ export default function Home() {
               {showFallback && (
                 <div className="mt-6 fade-in-up text-left" style={{ animationDelay: '0.1s' }}>
                   <div className="p-3 text-xs rounded-lg mb-4" style={{
-                    background: 'rgba(232, 197, 71, 0.12)',
-                    color: 'var(--g-amber)',
-                    border: '1px solid rgba(232, 197, 71, 0.2)',
+                    background: 'rgba(232, 197, 71, 0.08)',
+                    color: 'var(--color-text)',
+                    border: '1px solid rgba(232, 197, 71, 0.20)',
                   }}>
                     URLからの取得に失敗しました。本文を直接貼り付けてください。
                   </div>
                   <textarea
                     id="fallback-textarea"
-                    className="textarea-library w-full mb-3"
+                    className="textarea-auto w-full mb-3"
                     placeholder="noteの本文をここに貼り付けてください..."
                     value={noteBody}
                     onChange={e => setNoteBody(e.target.value)}
@@ -257,7 +257,7 @@ export default function Home() {
                     id="fallback-submit"
                     onClick={handleFallbackSubmit}
                     disabled={noteBody.trim().length < 50 || loading}
-                    className="btn-library w-full"
+                    className="btn-primary w-full"
                   >
                     この内容で本を探す
                   </button>
@@ -390,7 +390,7 @@ function ResultsView({
         <p className="text-[10px] font-bold tracking-[3px] uppercase mb-2" style={{ color: 'var(--color-text-dim)' }}>
           {currentPage + 1} / {totalPages}
         </p>
-        <h2 className="text-xl font-bold text-gradient-library">あなたのための本</h2>
+        <h2 className="text-xl font-bold text-gradient">あなたのための本</h2>
       </header>
 
       <div ref={containerRef} className="result-grid px-4 md:px-8"
@@ -406,7 +406,7 @@ function ResultsView({
 
       <div className="px-6 mt-8 max-w-lg mx-auto">
         {!isLastPage ? (
-          <button id="load-more-button" onClick={handleNextPage} className="btn-library-ghost w-full">
+          <button id="load-more-button" onClick={handleNextPage} className="btn-ghost w-full">
             他の本も見てみる →
           </button>
         ) : (
@@ -414,7 +414,7 @@ function ResultsView({
             <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--color-text-muted)' }}>
               別のnoteでも、<br />あなたの指標になる本を探してみませんか？
             </p>
-            <button id="restart-button" onClick={handleReset} className="btn-library w-full max-w-xs mx-auto">
+            <button id="restart-button" onClick={handleReset} className="btn-primary w-full max-w-xs mx-auto">
               もう一度探す
             </button>
           </div>

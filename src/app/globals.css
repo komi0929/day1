@@ -11,20 +11,18 @@
   --g-violet: #8B6BB5;
   --g-rose: #C96B8B;
 
-  /* ─── 深夜の私設図書館テーマ ─── */
-  --color-bg: #1A1512;
-  --color-bg-warm: #211C17;
-  --color-surface: rgba(42, 35, 28, 0.85);
-  --color-surface-raised: rgba(55, 46, 38, 0.90);
-  --color-text: #E8DDD0;
-  --color-text-muted: rgba(232, 221, 208, 0.65);
-  --color-text-dim: rgba(232, 221, 208, 0.38);
-  --color-border: rgba(232, 221, 208, 0.10);
-  --color-accent: #D0A06A;
-  --color-accent-bright: #E8C08A;
+  /* ─── ライトテーマ UI Colors ─── */
+  --color-bg: #FDF6EE;
+  --color-surface: rgba(255, 255, 255, 0.65);
+  --color-surface-raised: rgba(255, 255, 255, 0.80);
+  --color-text: #2C2520;
+  --color-text-muted: rgba(44, 37, 32, 0.60);
+  --color-text-dim: rgba(44, 37, 32, 0.38);
+  --color-border: rgba(44, 37, 32, 0.10);
+  --color-accent: #D0734A;
+  --color-accent-bright: #E8906A;
   --color-danger: #D05545;
   --color-success: #5A9462;
-  --color-gold: #C9A84C;
 }
 
 @theme inline {
@@ -39,8 +37,8 @@
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: 'Hiragino Mincho ProN', 'Noto Serif JP', 'Yu Mincho', 'MS PMincho',
-    'Hiragino Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans',
+    'Hiragino Kaku Gothic ProN', 'Noto Sans JP', Meiryo, sans-serif;
   overscroll-behavior-y: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -50,8 +48,8 @@ body {
 }
 
 ::selection {
-  background: rgba(208, 160, 106, 0.30);
-  color: #FDF6EE;
+  background: rgba(208, 115, 74, 0.30);
+  color: #1a1209;
 }
 
 input, textarea, button {
@@ -59,7 +57,7 @@ input, textarea, button {
 }
 
 /* ═══════════════════════════════════════════════
-   ノイズテクスチャ — アナログ質感
+   ノイズテクスチャ — 「ザラザラ」アナログ質感
    ═══════════════════════════════════════════════ */
 
 .noise-bg {
@@ -77,9 +75,9 @@ input, textarea, button {
   width: 200%;
   height: 200%;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  filter: contrast(200%) brightness(400%);
+  filter: contrast(200%) brightness(800%);
   mix-blend-mode: multiply;
-  opacity: 0.12;
+  opacity: 0.18;
   animation: noiseDrift1 8s ease-in-out infinite alternate;
 }
 
@@ -90,139 +88,172 @@ input, textarea, button {
   width: 160%;
   height: 160%;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n2'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n2)' opacity='1'/%3E%3C/svg%3E");
-  filter: contrast(300%) brightness(300%);
+  filter: contrast(300%) brightness(600%);
   mix-blend-mode: multiply;
-  opacity: 0.08;
+  opacity: 0.10;
   animation: noiseDrift2 12s ease-in-out infinite alternate;
 }
 
-/* ─── 深夜図書館グラデーション ─── */
-.gradient-library {
+/* ─── グレイニーグラデーション背景バリエーション ─── */
+.gradient-main {
   background:
-    radial-gradient(ellipse at 20% 0%, rgba(208, 160, 106, 0.08) 0%, transparent 55%),
-    radial-gradient(ellipse at 80% 10%, rgba(139, 107, 181, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 60% 100%, rgba(74, 155, 158, 0.05) 0%, transparent 55%),
-    radial-gradient(ellipse at 10% 80%, rgba(200, 168, 76, 0.06) 0%, transparent 45%),
+    radial-gradient(ellipse at 20% 0%, rgba(232, 101, 90, 0.20) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 10%, rgba(139, 107, 181, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 100%, rgba(74, 155, 158, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse at 10% 80%, rgba(232, 197, 71, 0.15) 0%, transparent 45%),
     var(--color-bg);
 }
 
-/* ═══════════════════════════════════════════════
-   テキストグラデーション
-   ═══════════════════════════════════════════════ */
-.text-gradient-library {
-  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-bright), var(--g-peach));
+.gradient-warm {
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(232, 101, 90, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 20%, rgba(242, 168, 124, 0.20) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 90%, rgba(232, 197, 71, 0.18) 0%, transparent 55%),
+    var(--color-bg);
+}
+
+.gradient-cool {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(91, 120, 196, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse at 70% 0%, rgba(74, 155, 158, 0.20) 0%, transparent 50%),
+    radial-gradient(ellipse at 40% 100%, rgba(123, 174, 130, 0.18) 0%, transparent 55%),
+    var(--color-bg);
+}
+
+.gradient-sunset {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(201, 107, 139, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 60%, rgba(232, 101, 90, 0.18) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 80%, rgba(232, 197, 71, 0.15) 0%, transparent 45%),
+    radial-gradient(ellipse at 60% 100%, rgba(139, 107, 181, 0.18) 0%, transparent 55%),
+    var(--color-bg);
+}
+
+/* ─── グラスモーフィズムカード ─── */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 3px rgba(44, 37, 32, 0.04);
+}
+
+/* ─── ボタン ─── */
+.btn-primary {
+  background: linear-gradient(135deg, var(--g-coral), var(--g-peach));
+  color: #fff;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 24px;
+  font-size: 14px;
+  transition: all 0.2s;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(232, 101, 90, 0.20);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn-ghost {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-size: 13px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.btn-ghost:active {
+  transform: scale(0.97);
+  background: var(--color-surface-raised);
+}
+
+/* ─── 入力 ─── */
+.input-field {
+  background: rgba(255, 255, 255, 0.50);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 14px;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  width: 100%;
+}
+
+.input-field::placeholder {
+  color: var(--color-text-dim);
+}
+
+.input-field:focus {
+  border-color: rgba(208, 115, 74, 0.40);
+  background: rgba(255, 255, 255, 0.70);
+}
+
+/* ─── テキストエリア ─── */
+.textarea-auto {
+  background: rgba(255, 255, 255, 0.50);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.textarea-auto::placeholder {
+  color: var(--color-text-dim);
+}
+
+.textarea-auto:focus {
+  border-color: rgba(208, 115, 74, 0.40);
+  background: rgba(255, 255, 255, 0.70);
+}
+
+/* ─── テキストグラデーション ─── */
+.text-gradient {
+  background: linear-gradient(135deg, var(--g-coral), var(--g-peach), var(--g-rose));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* ═══════════════════════════════════════════════
-   カードスタイル — 革装丁風
-   ═══════════════════════════════════════════════ */
-.card-library {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-/* ═══════════════════════════════════════════════
-   入力フィールド
-   ═══════════════════════════════════════════════ */
-.input-library {
-  background: rgba(42, 35, 28, 0.6);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 14px 16px;
-  font-size: 14px;
-  color: var(--color-text);
-  outline: none;
-  transition: border-color 0.3s, background 0.3s;
-  width: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-.input-library::placeholder {
-  color: var(--color-text-dim);
-}
-
-.input-library:focus {
-  border-color: rgba(208, 160, 106, 0.40);
-  background: rgba(42, 35, 28, 0.8);
-}
-
-.textarea-library {
-  background: rgba(42, 35, 28, 0.6);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 14px 16px;
-  font-size: 14px;
-  line-height: 1.8;
-  color: var(--color-text);
-  outline: none;
-  transition: border-color 0.3s;
-  width: 100%;
-  resize: vertical;
-  min-height: 160px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-.textarea-library::placeholder {
-  color: var(--color-text-dim);
-}
-
-.textarea-library:focus {
-  border-color: rgba(208, 160, 106, 0.40);
-}
-
-/* ═══════════════════════════════════════════════
-   ボタン
-   ═══════════════════════════════════════════════ */
-.btn-library {
-  background: linear-gradient(135deg, var(--color-accent), var(--g-peach));
-  color: #1A1512;
-  font-weight: 700;
-  border: none;
-  border-radius: 12px;
-  padding: 15px 24px;
-  font-size: 14px;
-  letter-spacing: 1px;
-  transition: all 0.25s;
-  cursor: pointer;
+/* ─── コンテンツラッパー（ノイズの上に配置） ─── */
+.content-layer {
   position: relative;
-  overflow: hidden;
-  box-shadow: 0 2px 12px rgba(208, 160, 106, 0.20);
+  z-index: 2;
 }
 
-.btn-library:active {
-  transform: scale(0.97);
+/* ─── スクロールバー ─── */
+::-webkit-scrollbar {
+  width: 4px;
 }
 
-.btn-library:disabled {
-  opacity: 0.4;
-  cursor: default;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.btn-library-ghost {
-  background: var(--color-surface);
-  color: var(--color-accent);
-  font-weight: 600;
-  border: 1px solid rgba(208, 160, 106, 0.20);
-  border-radius: 12px;
-  padding: 14px 24px;
-  font-size: 14px;
-  transition: all 0.25s;
-  cursor: pointer;
-}
-
-.btn-library-ghost:hover {
-  background: var(--color-surface-raised);
-  border-color: rgba(208, 160, 106, 0.35);
-}
-
-.btn-library-ghost:active {
-  transform: scale(0.97);
+::-webkit-scrollbar-thumb {
+  background: rgba(44, 37, 32, 0.12);
+  border-radius: 4px;
 }
 
 /* ═══════════════════════════════════════════════
@@ -238,29 +269,21 @@ input, textarea, button {
 .book-spine {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, var(--color-accent), var(--g-peach));
+  background: linear-gradient(135deg, var(--g-coral), var(--g-peach));
   border-radius: 4px 12px 12px 4px;
-  box-shadow: 
-    -4px 0 0 rgba(208, 160, 106, 0.3),
-    -8px 0 0 rgba(208, 160, 106, 0.15),
-    0 8px 30px rgba(208, 160, 106, 0.20);
+  box-shadow:
+    -4px 0 0 rgba(232, 101, 90, 0.3),
+    -8px 0 0 rgba(232, 101, 90, 0.15),
+    0 8px 30px rgba(232, 101, 90, 0.15);
   animation: bookBreath 3s ease-in-out infinite;
 }
 
 @keyframes bookBreath {
   0%, 100% {
     transform: rotateY(0deg) scale(1);
-    box-shadow: 
-      -4px 0 0 rgba(208, 160, 106, 0.3),
-      -8px 0 0 rgba(208, 160, 106, 0.15),
-      0 8px 30px rgba(208, 160, 106, 0.20);
   }
   50% {
     transform: rotateY(-8deg) scale(1.03);
-    box-shadow: 
-      -6px 0 0 rgba(208, 160, 106, 0.35),
-      -12px 0 0 rgba(208, 160, 106, 0.18),
-      0 12px 40px rgba(208, 160, 106, 0.25);
   }
 }
 
@@ -322,11 +345,12 @@ input, textarea, button {
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 1px 3px rgba(44, 37, 32, 0.04);
 }
 
 .book-card:hover {
   background: var(--color-surface-raised);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 8px 32px rgba(44, 37, 32, 0.08);
   transform: translateY(-3px);
 }
 
@@ -342,7 +366,7 @@ input, textarea, button {
 .book-cover-shadow {
   position: absolute;
   inset: 8px -4px -8px 4px;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(44, 37, 32, 0.12);
   border-radius: 4px 10px 10px 4px;
   filter: blur(12px);
 }
@@ -354,8 +378,8 @@ input, textarea, button {
   object-fit: cover;
   border-radius: 4px 10px 10px 4px;
   box-shadow:
-    -3px 0 0 rgba(208, 160, 106, 0.15),
-    -6px 0 0 rgba(208, 160, 106, 0.08);
+    -3px 0 0 rgba(232, 101, 90, 0.12),
+    -6px 0 0 rgba(232, 101, 90, 0.06);
   z-index: 1;
 }
 
@@ -365,7 +389,7 @@ input, textarea, button {
   font-weight: 800;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: var(--color-accent);
+  color: var(--g-coral);
   margin-bottom: 8px;
   text-align: center;
 }
@@ -401,7 +425,7 @@ input, textarea, button {
 .book-oneliner {
   font-size: 12px;
   line-height: 1.6;
-  color: var(--color-accent-bright);
+  color: var(--g-coral);
   font-style: italic;
   text-align: center;
   margin-bottom: 16px;
@@ -429,7 +453,7 @@ input, textarea, button {
 
 .book-expand-btn:hover {
   color: var(--color-accent);
-  border-color: rgba(208, 160, 106, 0.25);
+  border-color: rgba(208, 115, 74, 0.25);
 }
 
 .expand-arrow {
@@ -470,8 +494,8 @@ input, textarea, button {
 
 /* ─── 手紙スタイル ─── */
 .book-letter {
-  background: rgba(208, 160, 106, 0.05);
-  border: 1px solid rgba(208, 160, 106, 0.12);
+  background: rgba(232, 101, 90, 0.04);
+  border: 1px solid rgba(232, 101, 90, 0.10);
   border-radius: 12px;
   padding: 16px;
 }
@@ -498,31 +522,7 @@ input, textarea, button {
 }
 
 .book-amazon-link:hover {
-  background: rgba(208, 160, 106, 0.08);
-}
-
-/* ═══════════════════════════════════════════════
-   コンテンツラッパー
-   ═══════════════════════════════════════════════ */
-.content-layer {
-  position: relative;
-  z-index: 2;
-}
-
-/* ═══════════════════════════════════════════════
-   スクロールバー
-   ═══════════════════════════════════════════════ */
-::-webkit-scrollbar {
-  width: 4px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(232, 221, 208, 0.12);
-  border-radius: 4px;
+  background: rgba(208, 115, 74, 0.08);
 }
 
 /* ═══════════════════════════════════════════════
@@ -531,7 +531,7 @@ input, textarea, button {
 .how-steps {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .how-step {
@@ -554,8 +554,8 @@ input, textarea, button {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--color-accent), var(--g-peach));
-  color: #1A1512;
+  background: linear-gradient(135deg, var(--g-coral), var(--g-peach));
+  color: #fff;
   font-size: 14px;
   font-weight: 800;
 }
@@ -597,10 +597,12 @@ input, textarea, button {
 }
 
 .fade-in-up {
-  animation: fadeInUp 0.6s ease-out forwards;
-  opacity: 0;
+  animation: fadeInUp 0.5s ease-out forwards;
 }
 
+/* ═══════════════════════════════════════════════
+   ノイズ微動アニメーション
+   ═══════════════════════════════════════════════ */
 @keyframes noiseDrift1 {
   0% { transform: translate(0, 0); }
   25% { transform: translate(-2%, 1%); }

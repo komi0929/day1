@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 export default function TermsPage() {
   return (
-    <main className="min-h-dvh gradient-library">
+    <main className="min-h-dvh gradient-warm">
       <div className="max-w-2xl mx-auto px-5 py-10">
         <Link
           href="/"
@@ -18,7 +18,7 @@ export default function TermsPage() {
           利用規約
         </h1>
 
-        <div className="card-library p-6 space-y-6 text-sm leading-relaxed" style={{ color: 'var(--color-text)' }}>
+        <div className="card p-6 space-y-6 text-sm leading-relaxed" style={{ color: 'var(--color-text)' }}>
 
           <section>
             <h2 className="font-bold text-base mb-2">第1条（適用）</h2>
@@ -100,7 +100,7 @@ export default function TermsPage() {
             <p style={{ color: 'var(--color-text-muted)' }}>
               運営: 株式会社ヒトコト<br />
               代表: 小南優作<br />
-              お問い合わせ: <a href="mailto:y.kominami@hitokoto1.co.jp" className="underline" style={{ color: 'var(--color-accent)' }}>y.kominami@hitokoto1.co.jp</a>
+              お問い合わせ: <a href="mailto:y.kominami@hitokoto1.co.jp" className="underline" style={{ color: 'var(--g-coral)' }}>y.kominami@hitokoto1.co.jp</a>
             </p>
             <p className="mt-2" style={{ color: 'var(--color-text-dim)' }}>
               制定日: 2026年3月3日 / 改定日: 2026年3月5日
