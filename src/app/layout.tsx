@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,18 +13,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Compass — もやもやから、自分だけの指針を見つける",
-  description: "他者の言葉と自分のもやもやを掛け合わせ、AIが深層心理を言語化。あなただけのNow/Be/Doを導き出すインサイト・ライブラリ。",
+  title: "あなたのための1冊 — noteから運命の本を見つける",
+  description: "noteに書いたあなたの思考をAIが徹底的に読み解き、あなたの今に寄り添う「運命の1冊」をリコメンド。深夜の私設図書館から、編集者があなたへ手紙を添えて本を届けます。",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Compass",
+    title: "あなたのための1冊",
   },
   openGraph: {
-    title: "Compass — もやもやから、自分だけの指針を見つける",
-    description: "他者の言葉と自分のもやもやを掛け合わせ、深層心理を言語化するインサイト・ライブラリ。",
-    siteName: "Compass",
+    title: "あなたのための1冊 — noteから運命の本を見つける",
+    description: "noteに書いたあなたの思考をAIが読み解き、運命の1冊を見つけます。",
+    siteName: "あなたのための1冊",
     type: "website",
     locale: "ja_JP",
   },
@@ -36,7 +35,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#FDF6EE",
+  themeColor: "#1A1512",
 };
 
 export default function RootLayout({
@@ -55,11 +54,9 @@ export default function RootLayout({
         {/* Grainy noise overlay — fixed, covers entire viewport */}
         <div className="noise-bg" aria-hidden="true" />
 
-        <AuthProvider>
-          <div className="content-layer">
-            {children}
-          </div>
-        </AuthProvider>
+        <div className="content-layer">
+          {children}
+        </div>
       </body>
     </html>
   );

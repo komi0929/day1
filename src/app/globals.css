@@ -11,18 +11,20 @@
   --g-violet: #8B6BB5;
   --g-rose: #C96B8B;
 
-  /* ─── ライトテーマ UI Colors ─── */
-  --color-bg: #FDF6EE;
-  --color-surface: rgba(255, 255, 255, 0.65);
-  --color-surface-raised: rgba(255, 255, 255, 0.80);
-  --color-text: #2C2520;
-  --color-text-muted: rgba(44, 37, 32, 0.60);
-  --color-text-dim: rgba(44, 37, 32, 0.38);
-  --color-border: rgba(44, 37, 32, 0.10);
-  --color-accent: #D0734A;
-  --color-accent-bright: #E8906A;
+  /* ─── 深夜の私設図書館テーマ ─── */
+  --color-bg: #1A1512;
+  --color-bg-warm: #211C17;
+  --color-surface: rgba(42, 35, 28, 0.85);
+  --color-surface-raised: rgba(55, 46, 38, 0.90);
+  --color-text: #E8DDD0;
+  --color-text-muted: rgba(232, 221, 208, 0.65);
+  --color-text-dim: rgba(232, 221, 208, 0.38);
+  --color-border: rgba(232, 221, 208, 0.10);
+  --color-accent: #D0A06A;
+  --color-accent-bright: #E8C08A;
   --color-danger: #D05545;
   --color-success: #5A9462;
+  --color-gold: #C9A84C;
 }
 
 @theme inline {
@@ -37,8 +39,8 @@
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans',
-    'Hiragino Kaku Gothic ProN', 'Noto Sans JP', Meiryo, sans-serif;
+  font-family: 'Hiragino Mincho ProN', 'Noto Serif JP', 'Yu Mincho', 'MS PMincho',
+    'Hiragino Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   overscroll-behavior-y: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -48,8 +50,8 @@ body {
 }
 
 ::selection {
-  background: rgba(208, 115, 74, 0.30);
-  color: #1a1209;
+  background: rgba(208, 160, 106, 0.30);
+  color: #FDF6EE;
 }
 
 input, textarea, button {
@@ -57,7 +59,7 @@ input, textarea, button {
 }
 
 /* ═══════════════════════════════════════════════
-   ノイズテクスチャ — 「ザラザラ」アナログ質感
+   ノイズテクスチャ — アナログ質感
    ═══════════════════════════════════════════════ */
 
 .noise-bg {
@@ -75,9 +77,9 @@ input, textarea, button {
   width: 200%;
   height: 200%;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  filter: contrast(200%) brightness(800%);
+  filter: contrast(200%) brightness(400%);
   mix-blend-mode: multiply;
-  opacity: 0.18;
+  opacity: 0.12;
   animation: noiseDrift1 8s ease-in-out infinite alternate;
 }
 
@@ -88,145 +90,428 @@ input, textarea, button {
   width: 160%;
   height: 160%;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n2'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n2)' opacity='1'/%3E%3C/svg%3E");
-  filter: contrast(300%) brightness(600%);
+  filter: contrast(300%) brightness(300%);
   mix-blend-mode: multiply;
-  opacity: 0.10;
+  opacity: 0.08;
   animation: noiseDrift2 12s ease-in-out infinite alternate;
 }
 
-/* ─── グレイニーグラデーション背景バリエーション ─── */
-.gradient-main {
+/* ─── 深夜図書館グラデーション ─── */
+.gradient-library {
   background:
-    radial-gradient(ellipse at 20% 0%, rgba(232, 101, 90, 0.20) 0%, transparent 55%),
-    radial-gradient(ellipse at 80% 10%, rgba(139, 107, 181, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 60% 100%, rgba(74, 155, 158, 0.18) 0%, transparent 55%),
-    radial-gradient(ellipse at 10% 80%, rgba(232, 197, 71, 0.15) 0%, transparent 45%),
+    radial-gradient(ellipse at 20% 0%, rgba(208, 160, 106, 0.08) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 10%, rgba(139, 107, 181, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 100%, rgba(74, 155, 158, 0.05) 0%, transparent 55%),
+    radial-gradient(ellipse at 10% 80%, rgba(200, 168, 76, 0.06) 0%, transparent 45%),
     var(--color-bg);
 }
 
-.gradient-warm {
-  background:
-    radial-gradient(ellipse at 30% 0%, rgba(232, 101, 90, 0.22) 0%, transparent 55%),
-    radial-gradient(ellipse at 80% 20%, rgba(242, 168, 124, 0.20) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 90%, rgba(232, 197, 71, 0.18) 0%, transparent 55%),
-    var(--color-bg);
-}
-
-.gradient-cool {
-  background:
-    radial-gradient(ellipse at 20% 10%, rgba(91, 120, 196, 0.18) 0%, transparent 55%),
-    radial-gradient(ellipse at 70% 0%, rgba(74, 155, 158, 0.20) 0%, transparent 50%),
-    radial-gradient(ellipse at 40% 100%, rgba(123, 174, 130, 0.18) 0%, transparent 55%),
-    var(--color-bg);
-}
-
-.gradient-sunset {
-  background:
-    radial-gradient(ellipse at 50% 0%, rgba(201, 107, 139, 0.22) 0%, transparent 55%),
-    radial-gradient(ellipse at 80% 60%, rgba(232, 101, 90, 0.18) 0%, transparent 50%),
-    radial-gradient(ellipse at 20% 80%, rgba(232, 197, 71, 0.15) 0%, transparent 45%),
-    radial-gradient(ellipse at 60% 100%, rgba(139, 107, 181, 0.18) 0%, transparent 55%),
-    var(--color-bg);
-}
-
-/* ─── グラスモーフィズムカード ─── */
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 1px 3px rgba(44, 37, 32, 0.04);
-}
-
-.card-raised {
-  background: var(--color-surface-raised);
-  border: 1px solid rgba(44, 37, 32, 0.08);
-  border-radius: 16px;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 4px 16px rgba(44, 37, 32, 0.06);
-}
-
-/* ─── ボタン ─── */
-.btn-primary {
-  background: linear-gradient(135deg, var(--g-coral), var(--g-peach));
-  color: #fff;
-  font-weight: 700;
-  border: none;
-  border-radius: 12px;
-  padding: 14px 24px;
-  font-size: 14px;
-  transition: all 0.2s;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(232, 101, 90, 0.20);
-}
-
-.btn-primary:active {
-  transform: scale(0.97);
-}
-
-.btn-primary:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.btn-ghost {
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-weight: 600;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 12px 20px;
-  font-size: 13px;
-  transition: all 0.2s;
-  cursor: pointer;
-}
-
-.btn-ghost:active {
-  transform: scale(0.97);
-  background: var(--color-surface-raised);
-}
-
-/* ─── 入力 ─── */
-.input-field {
-  background: rgba(255, 255, 255, 0.50);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 12px 16px;
-  font-size: 14px;
-  color: var(--color-text);
-  outline: none;
-  transition: border-color 0.2s;
-  width: 100%;
-}
-
-.input-field::placeholder {
-  color: var(--color-text-dim);
-}
-
-.input-field:focus {
-  border-color: rgba(208, 115, 74, 0.40);
-  background: rgba(255, 255, 255, 0.70);
-}
-
-/* ─── テキストグラデーション ─── */
-.text-gradient {
-  background: linear-gradient(135deg, var(--g-coral), var(--g-peach), var(--g-rose));
+/* ═══════════════════════════════════════════════
+   テキストグラデーション
+   ═══════════════════════════════════════════════ */
+.text-gradient-library {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-bright), var(--g-peach));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* ─── コンテンツラッパー（ノイズの上に配置） ─── */
+/* ═══════════════════════════════════════════════
+   カードスタイル — 革装丁風
+   ═══════════════════════════════════════════════ */
+.card-library {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ═══════════════════════════════════════════════
+   入力フィールド
+   ═══════════════════════════════════════════════ */
+.input-library {
+  background: rgba(42, 35, 28, 0.6);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 14px;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.3s, background 0.3s;
+  width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.input-library::placeholder {
+  color: var(--color-text-dim);
+}
+
+.input-library:focus {
+  border-color: rgba(208, 160, 106, 0.40);
+  background: rgba(42, 35, 28, 0.8);
+}
+
+.textarea-library {
+  background: rgba(42, 35, 28, 0.6);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.3s;
+  width: 100%;
+  resize: vertical;
+  min-height: 160px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.textarea-library::placeholder {
+  color: var(--color-text-dim);
+}
+
+.textarea-library:focus {
+  border-color: rgba(208, 160, 106, 0.40);
+}
+
+/* ═══════════════════════════════════════════════
+   ボタン
+   ═══════════════════════════════════════════════ */
+.btn-library {
+  background: linear-gradient(135deg, var(--color-accent), var(--g-peach));
+  color: #1A1512;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  padding: 15px 24px;
+  font-size: 14px;
+  letter-spacing: 1px;
+  transition: all 0.25s;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(208, 160, 106, 0.20);
+}
+
+.btn-library:active {
+  transform: scale(0.97);
+}
+
+.btn-library:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn-library-ghost {
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font-weight: 600;
+  border: 1px solid rgba(208, 160, 106, 0.20);
+  border-radius: 12px;
+  padding: 14px 24px;
+  font-size: 14px;
+  transition: all 0.25s;
+  cursor: pointer;
+}
+
+.btn-library-ghost:hover {
+  background: var(--color-surface-raised);
+  border-color: rgba(208, 160, 106, 0.35);
+}
+
+.btn-library-ghost:active {
+  transform: scale(0.97);
+}
+
+/* ═══════════════════════════════════════════════
+   待機画面 — 本のパルスアニメ
+   ═══════════════════════════════════════════════ */
+.book-pulse {
+  width: 60px;
+  height: 80px;
+  position: relative;
+  perspective: 200px;
+}
+
+.book-spine {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--color-accent), var(--g-peach));
+  border-radius: 4px 12px 12px 4px;
+  box-shadow: 
+    -4px 0 0 rgba(208, 160, 106, 0.3),
+    -8px 0 0 rgba(208, 160, 106, 0.15),
+    0 8px 30px rgba(208, 160, 106, 0.20);
+  animation: bookBreath 3s ease-in-out infinite;
+}
+
+@keyframes bookBreath {
+  0%, 100% {
+    transform: rotateY(0deg) scale(1);
+    box-shadow: 
+      -4px 0 0 rgba(208, 160, 106, 0.3),
+      -8px 0 0 rgba(208, 160, 106, 0.15),
+      0 8px 30px rgba(208, 160, 106, 0.20);
+  }
+  50% {
+    transform: rotateY(-8deg) scale(1.03);
+    box-shadow: 
+      -6px 0 0 rgba(208, 160, 106, 0.35),
+      -12px 0 0 rgba(208, 160, 106, 0.18),
+      0 12px 40px rgba(208, 160, 106, 0.25);
+  }
+}
+
+/* ─── フラグメント表示 ─── */
+.fragment-container {
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+}
+
+.fragment-text {
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--color-text-muted);
+  font-style: italic;
+  transition: opacity 1.2s ease, transform 1.2s ease;
+  max-width: 400px;
+}
+
+.fragment-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.fragment-hidden {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+/* ═══════════════════════════════════════════════
+   結果画面 — 書籍カードグリッド
+   ═══════════════════════════════════════════════ */
+.result-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .result-grid {
+    grid-template-columns: repeat(3, 1fr);
+    max-width: 1100px;
+    gap: 28px;
+  }
+}
+
+/* ─── 書籍カード ─── */
+.book-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 24px 20px;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.book-card:hover {
+  background: var(--color-surface-raised);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  transform: translateY(-3px);
+}
+
+/* ─── 表紙画像 ─── */
+.book-cover-wrapper {
+  position: relative;
+  width: 140px;
+  height: 200px;
+  margin: 0 auto 20px;
+  flex-shrink: 0;
+}
+
+.book-cover-shadow {
+  position: absolute;
+  inset: 8px -4px -8px 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px 10px 10px 4px;
+  filter: blur(12px);
+}
+
+.book-cover-img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4px 10px 10px 4px;
+  box-shadow:
+    -3px 0 0 rgba(208, 160, 106, 0.15),
+    -6px 0 0 rgba(208, 160, 106, 0.08);
+  z-index: 1;
+}
+
+/* ─── ラベル ─── */
+.book-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+/* ─── タイトル・著者 ─── */
+.book-title {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--color-text);
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.book-author {
+  font-size: 11px;
+  color: var(--color-text-dim);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+/* ─── ヘッドライン ─── */
+.book-headline {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* ─── ヒトコト推薦 ─── */
+.book-oneliner {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-accent-bright);
+  font-style: italic;
+  text-align: center;
+  margin-bottom: 16px;
+  padding: 0 8px;
+}
+
+/* ─── 展開ボタン ─── */
+.book-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+}
+
+.book-expand-btn:hover {
+  color: var(--color-accent);
+  border-color: rgba(208, 160, 106, 0.25);
+}
+
+.expand-arrow {
+  display: inline-block;
+  transition: transform 0.3s ease;
+  font-size: 10px;
+}
+
+/* ─── 詳細セクション ─── */
+.book-details {
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+  margin-bottom: 12px;
+}
+
+.book-detail-section {
+  margin-bottom: 16px;
+}
+
+.book-detail-section:last-child {
+  margin-bottom: 0;
+}
+
+.book-detail-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-text-dim);
+  margin-bottom: 8px;
+}
+
+.book-detail-text {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--color-text-muted);
+}
+
+/* ─── 手紙スタイル ─── */
+.book-letter {
+  background: rgba(208, 160, 106, 0.05);
+  border: 1px solid rgba(208, 160, 106, 0.12);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.book-letter-text {
+  font-size: 13px;
+  line-height: 2.0;
+  color: var(--color-text);
+  font-style: italic;
+}
+
+/* ─── Amazonリンク ─── */
+.book-amazon-link {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent);
+  text-decoration: none;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.2s;
+  margin-top: auto;
+}
+
+.book-amazon-link:hover {
+  background: rgba(208, 160, 106, 0.08);
+}
+
+/* ═══════════════════════════════════════════════
+   コンテンツラッパー
+   ═══════════════════════════════════════════════ */
 .content-layer {
   position: relative;
   z-index: 2;
 }
 
-/* ─── スクロールバー ─── */
+/* ═══════════════════════════════════════════════
+   スクロールバー
+   ═══════════════════════════════════════════════ */
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -236,130 +521,13 @@ input, textarea, button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(44, 37, 32, 0.12);
+  background: rgba(232, 221, 208, 0.12);
   border-radius: 4px;
 }
 
 /* ═══════════════════════════════════════════════
-   Compass — スプリットビュー レイアウト
+   アニメーション
    ═══════════════════════════════════════════════ */
-
-.workspace-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-  min-height: 100dvh;
-}
-
-.workspace-panel {
-  height: 100dvh;
-  overflow-y: auto;
-  padding: 32px;
-}
-
-.workspace-panel-left {
-  border-right: 1px solid var(--color-border);
-}
-
-/* ─── note source カード ─── */
-.source-card {
-  background: rgba(255, 255, 255, 0.45);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  padding: 16px;
-  transition: all 0.2s;
-}
-
-.source-card:hover {
-  background: rgba(255, 255, 255, 0.60);
-  box-shadow: 0 2px 8px rgba(44, 37, 32, 0.06);
-}
-
-/* ─── インサイト表示 ─── */
-.insight-section {
-  padding: 24px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.insight-section:last-child {
-  border-bottom: none;
-}
-
-.insight-label {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  margin-bottom: 12px;
-}
-
-.insight-label-thread { color: var(--g-violet); }
-.insight-label-now { color: var(--g-teal); }
-.insight-label-be { color: var(--g-blue); }
-.insight-label-do { color: var(--g-coral); }
-
-/* ─── ライブラリカード ─── */
-.library-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 24px;
-  transition: all 0.25s;
-  cursor: pointer;
-}
-
-.library-card:hover {
-  background: var(--color-surface-raised);
-  box-shadow: 0 8px 24px rgba(44, 37, 32, 0.08);
-  transform: translateY(-2px);
-}
-
-/* ─── ナビバー ─── */
-.compass-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  background: rgba(253, 246, 238, 0.80);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--color-border);
-}
-
-/* ─── テキストエリア自動リサイズ ─── */
-.textarea-auto {
-  background: rgba(255, 255, 255, 0.50);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  padding: 16px;
-  font-size: 15px;
-  line-height: 1.7;
-  color: var(--color-text);
-  outline: none;
-  transition: border-color 0.2s;
-  width: 100%;
-  resize: none;
-  min-height: 120px;
-}
-
-.textarea-auto::placeholder {
-  color: var(--color-text-dim);
-}
-
-.textarea-auto:focus {
-  border-color: rgba(208, 115, 74, 0.40);
-  background: rgba(255, 255, 255, 0.70);
-}
-
-/* ─── 分析中アニメーション ─── */
 @keyframes pulse-soft {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }
@@ -369,7 +537,6 @@ input, textarea, button {
   animation: pulse-soft 2s ease-in-out infinite;
 }
 
-/* ─── フェードイン ─── */
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -382,56 +549,21 @@ input, textarea, button {
 }
 
 .fade-in-up {
-  animation: fadeInUp 0.5s ease-out forwards;
+  animation: fadeInUp 0.6s ease-out forwards;
+  opacity: 0;
 }
 
-/* ─── レスポンシブ: タブレット以下はスタック ─── */
-@media (max-width: 1024px) {
-  .workspace-layout {
-    grid-template-columns: 1fr;
-  }
-  .workspace-panel {
-    height: auto;
-    min-height: auto;
-  }
-  .workspace-panel-left {
-    border-right: none;
-    border-bottom: 1px solid var(--color-border);
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   ノイズ微動アニメーション
-   ═══════════════════════════════════════════════ */
 @keyframes noiseDrift1 {
-  0% {
-    transform: translate(0, 0);
-  }
-  25% {
-    transform: translate(-2%, 1%);
-  }
-  50% {
-    transform: translate(1%, -2%);
-  }
-  75% {
-    transform: translate(-1%, -1%);
-  }
-  100% {
-    transform: translate(2%, 1.5%);
-  }
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-2%, 1%); }
+  50% { transform: translate(1%, -2%); }
+  75% { transform: translate(-1%, -1%); }
+  100% { transform: translate(2%, 1.5%); }
 }
 
 @keyframes noiseDrift2 {
-  0% {
-    transform: translate(0, 0) rotate(0deg);
-  }
-  33% {
-    transform: translate(1.5%, 2%) rotate(0.5deg);
-  }
-  66% {
-    transform: translate(-1%, -1.5%) rotate(-0.3deg);
-  }
-  100% {
-    transform: translate(-2%, 1%) rotate(0.2deg);
-  }
+  0% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(1.5%, 2%) rotate(0.5deg); }
+  66% { transform: translate(-1%, -1.5%) rotate(-0.3deg); }
+  100% { transform: translate(-2%, 1%) rotate(0.2deg); }
 }

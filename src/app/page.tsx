@@ -1,28 +1,542 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
+/* ─── Types ─── */
+interface BookResult {
+  title: string;
+  author: string;
+  label: string;
+  headline: string;
+  oneliner: string;
+  summary: string;
+  letter: string;
+  thumbnail: string;
+  amazonUrl: string;
+}
+
+type AppPhase = 'input' | 'waiting' | 'results';
+
+/* ─── Main Component ─── */
 export default function Home() {
-  const router = useRouter();
-  const { user, loading } = useAuth();
+  const [phase, setPhase] = useState<AppPhase>('input');
+  const [noteUrl, setNoteUrl] = useState('');
+  const [noteBody, setNoteBody] = useState('');
+  const [noteTitle, setNoteTitle] = useState('');
+  const [showFallback, setShowFallback] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  // Results
+  const [allBooks, setAllBooks] = useState<BookResult[]>([]);
+  const [fragments, setFragments] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [expandedCard, setExpandedCard] = useState<number | null>(null);
+
+  // Waiting screen animation
+  const [currentFragment, setCurrentFragment] = useState(0);
+  const [fragmentVisible, setFragmentVisible] = useState(false);
+
+  /* ─── URL submit handler ─── */
+  const handleSubmit = useCallback(async () => {
     if (loading) return;
-    if (!user) {
-      router.replace('/login');
-    } else {
-      router.replace('/workspace');
+    setError(null);
+    setLoading(true);
+    setShowFallback(false);
+
+    try {
+      const res = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: noteUrl.trim() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        if (data.error === 'SCRAPE_FAILED' || data.error === 'FETCH_FAILED') {
+          setShowFallback(true);
+          setLoading(false);
+          return;
+        }
+        throw new Error(data.message || 'エラーが発生しました');
+      }
+
+      const data = await res.json();
+      setNoteBody(data.body);
+      setNoteTitle(data.title || '');
+      startRecommendation(data.body, data.title || '');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setLoading(false);
     }
-  }, [user, loading, router]);
+  }, [noteUrl, loading]);
+
+  /* ─── Fallback text submit ─── */
+  const handleFallbackSubmit = useCallback(() => {
+    if (!noteBody.trim() || noteBody.trim().length < 50) {
+      setError('もう少し長い本文を入力してください（50文字以上）');
+      return;
+    }
+    startRecommendation(noteBody, noteTitle);
+  }, [noteBody, noteTitle]);
+
+  /* ─── Start recommendation process ─── */
+  const startRecommendation = async (body: string, title: string) => {
+    setPhase('waiting');
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body, title }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || '推薦の生成に失敗しました');
+      }
+
+      const data = await res.json();
+      setAllBooks(data.books || []);
+      setFragments(data.fragments || []);
+      setCurrentPage(0);
+      setExpandedCard(null);
+      setPhase('results');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '推薦の生成に失敗しました');
+      setPhase('input');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ─── Fragment rotation for waiting screen ─── */
+  useEffect(() => {
+    if (phase !== 'waiting' || fragments.length === 0) return;
+
+    setFragmentVisible(true);
+    const interval = setInterval(() => {
+      setFragmentVisible(false);
+      setTimeout(() => {
+        setCurrentFragment(prev => (prev + 1) % fragments.length);
+        setFragmentVisible(true);
+      }, 1200);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [phase, fragments.length]);
+
+  /* ─── Pre-extract fragments during scrape ─── */
+  useEffect(() => {
+    if (phase === 'waiting' && fragments.length === 0 && noteBody) {
+      // Generate placeholder fragments from actual text
+      const sentences = noteBody
+        .split(/[。！？\n]/)
+        .map(s => s.trim())
+        .filter(s => s.length >= 15 && s.length <= 80);
+      const shuffled = sentences.sort(() => Math.random() - 0.5).slice(0, 6);
+      if (shuffled.length > 0) {
+        setFragments(shuffled);
+      }
+    }
+  }, [phase, noteBody, fragments.length]);
+
+  /* ─── Pagination ─── */
+  const booksPerPage = 3;
+  const totalPages = Math.ceil(allBooks.length / booksPerPage);
+  const currentBooks = allBooks.slice(
+    currentPage * booksPerPage,
+    (currentPage + 1) * booksPerPage
+  );
+  const isLastPage = currentPage >= totalPages - 1;
+
+  const handleNextPage = () => {
+    if (!isLastPage) {
+      setCurrentPage(prev => prev + 1);
+      setExpandedCard(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleReset = () => {
+    setPhase('input');
+    setNoteUrl('');
+    setNoteBody('');
+    setNoteTitle('');
+    setShowFallback(false);
+    setAllBooks([]);
+    setFragments([]);
+    setCurrentPage(0);
+    setExpandedCard(null);
+    setError(null);
+    setLoading(false);
+    setCurrentFragment(0);
+  };
 
   return (
-    <main className="min-h-dvh flex items-center justify-center gradient-main">
-      <div className="flex flex-col items-center gap-3">
-        <h1 className="text-3xl font-black text-gradient">Compass</h1>
-        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>読み込み中...</p>
+    <div className="gradient-library min-h-dvh">
+      {/* ═══ INPUT PHASE ═══ */}
+      {phase === 'input' && (
+        <main className="min-h-dvh flex items-center justify-center px-4">
+          <div className="max-w-lg w-full text-center">
+            {/* Brand */}
+            <div className="mb-12 fade-in-up">
+              <div className="text-5xl mb-4 opacity-70">📖</div>
+              <h1 className="text-3xl font-black text-gradient-library tracking-tight mb-3">
+                あなたのための1冊
+              </h1>
+              <p
+                className="text-sm leading-relaxed"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                noteに書いたあなたの思考から、
+                <br />
+                運命の本を見つけます。
+              </p>
+            </div>
+
+            {/* URL Input */}
+            <div className="fade-in-up" style={{ animationDelay: '0.15s' }}>
+              <div className="card-library p-4 mb-4">
+                <input
+                  id="note-url-input"
+                  type="url"
+                  className="input-library w-full"
+                  placeholder="https://note.com/..."
+                  value={noteUrl}
+                  onChange={e => setNoteUrl(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && noteUrl.trim()) handleSubmit();
+                  }}
+                  disabled={loading}
+                />
+              </div>
+
+              <button
+                id="submit-button"
+                onClick={handleSubmit}
+                disabled={!noteUrl.trim() || loading}
+                className="btn-library w-full"
+              >
+                {loading ? (
+                  <span className="analyzing-pulse">解析中...</span>
+                ) : (
+                  '本を探す'
+                )}
+              </button>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div
+                className="mt-4 p-3 text-xs rounded-lg text-left"
+                style={{
+                  background: 'rgba(232, 101, 90, 0.12)',
+                  color: 'var(--g-coral)',
+                  border: '1px solid rgba(232, 101, 90, 0.2)',
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            {/* Fallback: paste text area */}
+            {showFallback && (
+              <div
+                className="mt-6 fade-in-up text-left"
+                style={{ animationDelay: '0.1s' }}
+              >
+                <div
+                  className="p-3 text-xs rounded-lg mb-4"
+                  style={{
+                    background: 'rgba(232, 197, 71, 0.12)',
+                    color: 'var(--g-amber)',
+                    border: '1px solid rgba(232, 197, 71, 0.2)',
+                  }}
+                >
+                  URLからの取得に失敗しました。本文を直接貼り付けてください。
+                </div>
+                <textarea
+                  id="fallback-textarea"
+                  className="textarea-library w-full mb-3"
+                  placeholder="noteの本文をここに貼り付けてください..."
+                  value={noteBody}
+                  onChange={e => setNoteBody(e.target.value)}
+                  rows={8}
+                />
+                <button
+                  id="fallback-submit"
+                  onClick={handleFallbackSubmit}
+                  disabled={noteBody.trim().length < 50 || loading}
+                  className="btn-library w-full"
+                >
+                  この内容で本を探す
+                </button>
+              </div>
+            )}
+
+            {/* Footer */}
+            <p
+              className="mt-10 text-[10px]"
+              style={{ color: 'var(--color-text-dim)' }}
+            >
+              noteの文章をAIが読み解き、あなたに合った本を推薦します
+            </p>
+          </div>
+        </main>
+      )}
+
+      {/* ═══ WAITING PHASE ═══ */}
+      {phase === 'waiting' && (
+        <main className="min-h-dvh flex items-center justify-center px-6">
+          <div className="max-w-lg w-full text-center">
+            <div className="mb-8">
+              <div className="book-pulse mx-auto mb-8">
+                <div className="book-spine" />
+              </div>
+              <p
+                className="text-sm font-medium mb-2"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                30秒ほどかかります、ゆっくりお待ちください
+              </p>
+              <p
+                className="text-[11px]"
+                style={{ color: 'var(--color-text-dim)' }}
+              >
+                あなたのnoteを深く読み解いています...
+              </p>
+            </div>
+
+            {/* Fragment display */}
+            <div className="fragment-container">
+              {fragments.length > 0 && (
+                <p
+                  className={`fragment-text ${fragmentVisible ? 'fragment-visible' : 'fragment-hidden'}`}
+                >
+                  「{fragments[currentFragment]}」
+                </p>
+              )}
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* ═══ RESULTS PHASE ═══ */}
+      {phase === 'results' && (
+        <ResultsView
+          books={currentBooks}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          isLastPage={isLastPage}
+          expandedCard={expandedCard}
+          setExpandedCard={setExpandedCard}
+          handleNextPage={handleNextPage}
+          handleReset={handleReset}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   Results View Component
+   ═══════════════════════════════════════════════ */
+
+function ResultsView({
+  books,
+  currentPage,
+  totalPages,
+  isLastPage,
+  expandedCard,
+  setExpandedCard,
+  handleNextPage,
+  handleReset,
+}: {
+  books: BookResult[];
+  currentPage: number;
+  totalPages: number;
+  isLastPage: boolean;
+  expandedCard: number | null;
+  setExpandedCard: (i: number | null) => void;
+  handleNextPage: () => void;
+  handleReset: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+
+  // Swipe handler for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStart === null) return;
+    const diff = touchStart - e.changedTouches[0].clientX;
+    if (diff > 80 && !isLastPage) {
+      handleNextPage();
+    }
+    setTouchStart(null);
+  };
+
+  return (
+    <main className="min-h-dvh pb-24">
+      {/* Header */}
+      <header className="pt-10 pb-6 px-6 text-center">
+        <p
+          className="text-[10px] font-bold tracking-[3px] uppercase mb-2"
+          style={{ color: 'var(--color-text-dim)' }}
+        >
+          {currentPage + 1} / {totalPages}
+        </p>
+        <h2 className="text-xl font-bold text-gradient-library">
+          あなたのための本
+        </h2>
+      </header>
+
+      {/* Book Cards — responsive grid */}
+      <div
+        ref={containerRef}
+        className="result-grid px-4 md:px-8"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        {books.map((book, i) => (
+          <BookCard
+            key={`${currentPage}-${i}`}
+            book={book}
+            index={i}
+            isExpanded={expandedCard === i}
+            onToggle={() =>
+              setExpandedCard(expandedCard === i ? null : i)
+            }
+          />
+        ))}
+      </div>
+
+      {/* Pagination / End */}
+      <div className="px-6 mt-8 max-w-lg mx-auto">
+        {!isLastPage ? (
+          <button
+            id="load-more-button"
+            onClick={handleNextPage}
+            className="btn-library-ghost w-full"
+          >
+            他の本も見てみる →
+          </button>
+        ) : (
+          <div className="text-center fade-in-up">
+            <p
+              className="text-sm leading-relaxed mb-6"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              別のnoteでも、
+              <br />
+              あなたの指標になる本を探してみませんか？
+            </p>
+            <button
+              id="restart-button"
+              onClick={handleReset}
+              className="btn-library w-full max-w-xs mx-auto"
+            >
+              もう一度探す
+            </button>
+          </div>
+        )}
       </div>
     </main>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   Book Card Component
+   ═══════════════════════════════════════════════ */
+
+function BookCard({
+  book,
+  index,
+  isExpanded,
+  onToggle,
+}: {
+  book: BookResult;
+  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <article
+      className="book-card fade-in-up"
+      style={{ animationDelay: `${index * 0.12}s` }}
+    >
+      {/* Cover image */}
+      <div className="book-cover-wrapper">
+        <div className="book-cover-shadow" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imgError ? '/default-cover.png' : book.thumbnail}
+          alt={`${book.title} 表紙`}
+          className="book-cover-img"
+          onError={() => setImgError(true)}
+          loading="lazy"
+        />
+      </div>
+
+      {/* Label */}
+      <div className="book-label">{book.label}</div>
+
+      {/* Title & Author */}
+      <h3 className="book-title">{book.title}</h3>
+      <p className="book-author">{book.author}</p>
+
+      {/* Headline */}
+      <p className="book-headline">{book.headline}</p>
+
+      {/* Oneliner */}
+      <p className="book-oneliner">「{book.oneliner}」</p>
+
+      {/* Expandable sections */}
+      <button
+        onClick={onToggle}
+        className="book-expand-btn"
+      >
+        {isExpanded ? '閉じる' : '推薦文を読む'}
+        <span
+          className="expand-arrow"
+          style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        >
+          ▾
+        </span>
+      </button>
+
+      {isExpanded && (
+        <div className="book-details fade-in-up">
+          {/* Summary */}
+          <div className="book-detail-section">
+            <h4 className="book-detail-label">この本について</h4>
+            <p className="book-detail-text">{book.summary}</p>
+          </div>
+
+          {/* Letter */}
+          <div className="book-detail-section book-letter">
+            <h4 className="book-detail-label">📝 あなたへの手紙</h4>
+            <p className="book-letter-text">{book.letter}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Amazon link */}
+      <a
+        href={book.amazonUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="book-amazon-link"
+      >
+        Amazonで見る →
+      </a>
+    </article>
   );
 }

@@ -1,5 +1,40 @@
 # Changelog
 
+## [2026-03-05] — プロダクト抜本リビルド
+
+### ✨ Feature
+- **「あなたのための1冊」— note URL→書籍推薦アプリ**に全面リビルド
+  - note URLスクレイピング（5段階フォールバック戦略: JSON-LD / OG / note-body / article / __NEXT_DATA__）
+  - 取得失敗時のテキスト直接入力フォールバックUI
+  - Gemini 2.5 Flash によるディープ・プロファイリング（立場・悩み・課題感・隠れた願望を推論）
+  - 9冊の書籍一括推薦（ラベル / ヘッドライン / ヒトコト / 書籍概要 / 手紙形式推薦文 / Amazonリンク）
+  - Google Books APIによる表紙画像自動取得
+  - 3冊ずつページネーション表示（計3ページ、待機ゼロで即表示）
+  - 30秒没入型待機体験（note本文からの一節フェードイン・アウト表示）
+  - スマホ横スワイプ対応、PC 3列グリッドレスポンシブ
+
+### 🎨 Design
+- 「深夜の私設図書館」ダークテーマに全面刷新
+  - アナログ暖色パレット（amber/gold/peach）を維持しつつダークモード化
+  - ノイズテクスチャ＆グレイニーグラデーション完全維持
+  - 書籍カード: 表紙画像大表示＋立体的シャドウ＋革装丁風UI
+  - 手紙形式推薦文の特別スタイリング
+  - 明朝体ベースのタイポグラフィ（Hiragino Mincho / Noto Serif JP）
+  - フォールバック書籍カバー画像生成・配置
+
+### 🗑️ Cleanup
+- 旧Compassアプリの全ルート削除（/workspace, /library, /login, /privacy, /terms）
+- 旧API削除（/api/extract, /api/delete-account）
+- AuthProvider / Supabase認証依存を削除（パブリックアプリ化）
+
+## [2026-03-05]
+
+### ⬆️ Upgrade
+- AIモデルを Gemini 2.0 Flash → **Gemini 2.5 Flash (Thinking model)** にアップグレード
+  - 深い推論（chain-of-thought）による分析品質向上
+  - temperature: 0.9→0.8、maxOutputTokens: 8192→65536に調整
+  - Thinkingモデルのmarkdownコードフェンス対応JSONパース追加
+
 ## [2026-03-04]
 
 ### ♻️ Refactor
