@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 interface BookResult {
   title: string;
   author: string;
+  isbn?: string;
   label: string;
   headline: string;
   oneliner: string;
@@ -30,10 +31,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Results — progressive loading
+  // Results — two-phase progressive loading
   const [allBooks, setAllBooks] = useState<BookResult[]>([]);
   const [fragments, setFragments] = useState<string[]>([]);
-  const [revealedCount, setRevealedCount] = useState(0); // How many books have been "revealed" (user has unlocked)
+  const [phase2Loading, setPhase2Loading] = useState(false);
+  const [phase2Loaded, setPhase2Loaded] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [bookmarkedTitles, setBookmarkedTitles] = useState<Set<string>>(new Set());
@@ -42,6 +44,9 @@ export default function Home() {
   // Waiting screen animation
   const [currentFragment, setCurrentFragment] = useState(0);
   const [fragmentVisible, setFragmentVisible] = useState(false);
+
+  // Ref to hold noteBody/noteTitle for phase 2 call
+  const phase2DataRef = useRef<{ body: string; title: string }>({ body: '', title: '' });
 
   /* ─── URL submit handler ─── */
   const handleSubmit = useCallback(async () => {
@@ -86,11 +91,14 @@ export default function Home() {
     startRecommendation(noteBody, noteTitle);
   }, [noteBody, noteTitle]);
 
-  /* ─── Start recommendation process ─── */
+  /* ─── Start recommendation process — Phase 1 (3 books) ─── */
   const startRecommendation = async (body: string, title: string) => {
     setPhase('waiting');
     setLoading(true);
     setError(null);
+    setPhase2Loading(false);
+    setPhase2Loaded(false);
+    phase2DataRef.current = { body, title };
 
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -98,10 +106,11 @@ export default function Home() {
         headers['Authorization'] = `Bearer ${session.access_token}`;
       }
 
+      // Phase 1: Get first 3 books (fast)
       const res = await fetch('/api/recommend', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ body, title }),
+        body: JSON.stringify({ body, title, phase: 1 }),
       });
 
       if (!res.ok) {
@@ -112,8 +121,6 @@ export default function Home() {
       const data = await res.json();
       setAllBooks(data.books || []);
       setFragments(data.fragments || []);
-      // Initially reveal only first 3 books
-      setRevealedCount(3);
       setCurrentPage(0);
       setExpandedCard(null);
       setPhase('results');
@@ -125,11 +132,43 @@ export default function Home() {
     }
   };
 
+  /* ─── Phase 2: Load 6 more books in background ─── */
+  const loadMoreBooks = useCallback(async () => {
+    if (phase2Loading || phase2Loaded) return;
+    setPhase2Loading(true);
+
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
+      const { body, title } = phase2DataRef.current;
+      const excludeTitles = allBooks.map(b => b.title);
+
+      const res = await fetch('/api/recommend', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ body, title, phase: 2, excludeTitles }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const newBooks: BookResult[] = data.books || [];
+        setAllBooks(prev => [...prev, ...newBooks]);
+      }
+    } catch {
+      // Non-critical — phase 2 is best-effort
+    } finally {
+      setPhase2Loading(false);
+      setPhase2Loaded(true);
+    }
+  }, [phase2Loading, phase2Loaded, allBooks, session?.access_token]);
+
   /* ─── Save selection & trigger heart profile (for logged-in users) ─── */
   useEffect(() => {
     if (phase !== 'results' || allBooks.length === 0) return;
     if (!session?.access_token) {
-      // Save to LocalStorage for later migration
       try {
         const pending = JSON.parse(localStorage.getItem('compass_pending') || '[]');
         pending.push({ noteUrl, noteTitle, noteBody: noteBody.slice(0, 500), books: allBooks, fragments, ts: Date.now() });
@@ -137,7 +176,6 @@ export default function Home() {
       } catch { /* ignore */ }
       return;
     }
-    // Save to DB
     const saveAndProfile = async () => {
       try {
         const saveRes = await fetch('/api/save-selection', {
@@ -146,7 +184,6 @@ export default function Home() {
           body: JSON.stringify({ noteUrl, noteTitle, noteBody: noteBody.slice(0, 500), books: allBooks, fragments }),
         });
         const saveData = await saveRes.json();
-        // Trigger heart profile generation (fire-and-forget)
         fetch('/api/heart-profile', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
@@ -161,7 +198,6 @@ export default function Home() {
   /* ─── Bookmark handler ─── */
   const handleBookmark = useCallback(async (book: BookResult) => {
     if (!session?.access_token) {
-      // Not logged in — save to localStorage and show signup modal
       try {
         const saved = JSON.parse(localStorage.getItem('compass_bookmarks') || '[]');
         if (!saved.find((b: BookResult) => b.title === book.title && b.author === book.author)) {
@@ -173,7 +209,6 @@ export default function Home() {
       setShowSignupModal(true);
       return;
     }
-    // Logged in — save to DB
     setBookmarkedTitles(prev => new Set(prev).add(book.title));
     try {
       await fetch('/api/bookmarks', {
@@ -187,7 +222,6 @@ export default function Home() {
   /* ─── Fragment rotation for waiting screen ─── */
   useEffect(() => {
     if (phase !== 'waiting' || fragments.length === 0) return;
-
     setFragmentVisible(true);
     const interval = setInterval(() => {
       setFragmentVisible(false);
@@ -196,7 +230,6 @@ export default function Home() {
         setFragmentVisible(true);
       }, 1200);
     }, 5000);
-
     return () => clearInterval(interval);
   }, [phase, fragments.length]);
 
@@ -208,29 +241,21 @@ export default function Home() {
         .map(s => s.trim())
         .filter(s => s.length >= 15 && s.length <= 80);
       const shuffled = sentences.sort(() => Math.random() - 0.5).slice(0, 6);
-      if (shuffled.length > 0) {
-        setFragments(shuffled);
-      }
+      if (shuffled.length > 0) setFragments(shuffled);
     }
   }, [phase, noteBody, fragments.length]);
 
-  /* ─── Progressive loading: revealed books and pagination ─── */
+  /* ─── Pagination ─── */
   const booksPerPage = 3;
-  const revealedBooks = allBooks.slice(0, revealedCount);
-  const totalRevealedPages = Math.ceil(revealedBooks.length / booksPerPage);
-  const currentBooks = revealedBooks.slice(
+  const totalPages = Math.ceil(allBooks.length / booksPerPage);
+  const currentBooks = allBooks.slice(
     currentPage * booksPerPage,
     (currentPage + 1) * booksPerPage
   );
-  const canRevealMore = revealedCount < allBooks.length;
-  const isOnLastRevealedPage = currentPage >= totalRevealedPages - 1;
-
-  // Show pagination (1/3 format) only after all 9 are revealed
-  const showPagination = revealedCount >= allBooks.length && allBooks.length > 0;
-  const totalPages = Math.ceil(allBooks.length / booksPerPage);
+  const isOnLastPage = currentPage >= totalPages - 1;
 
   const handleNextPage = () => {
-    if (currentPage < totalRevealedPages - 1) {
+    if (currentPage < totalPages - 1) {
       setCurrentPage(prev => prev + 1);
       setExpandedCard(null);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -245,15 +270,27 @@ export default function Home() {
     }
   };
 
-  const handleRevealMore = () => {
-    // Reveal next 3 books and go to that page
-    const newRevealed = Math.min(revealedCount + 3, allBooks.length);
-    setRevealedCount(newRevealed);
-    const newPage = Math.ceil(newRevealed / booksPerPage) - 1;
-    setCurrentPage(newPage);
-    setExpandedCard(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  /* ─── "他の本を探す" → triggers phase 2 background load ─── */
+  const handleExploreMore = () => {
+    if (!phase2Loaded && !phase2Loading) {
+      // Start loading phase 2 and immediately show next page when ready
+      loadMoreBooks();
+    } else if (phase2Loaded && allBooks.length > (currentPage + 1) * booksPerPage) {
+      // Phase 2 already loaded, just go to next page
+      handleNextPage();
+    }
   };
+
+  // When phase2 loads and user was waiting, auto-advance to new page
+  useEffect(() => {
+    if (phase2Loaded && allBooks.length > 3 && currentPage === 0 && isOnLastPage) {
+      // After phase2 loads, auto-advance to page 2 if user is still on page 1
+      setCurrentPage(1);
+      setExpandedCard(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase2Loaded, allBooks.length]);
 
   const handleReset = () => {
     setPhase('input');
@@ -263,7 +300,8 @@ export default function Home() {
     setShowFallback(false);
     setAllBooks([]);
     setFragments([]);
-    setRevealedCount(0);
+    setPhase2Loading(false);
+    setPhase2Loaded(false);
     setCurrentPage(0);
     setExpandedCard(null);
     setError(null);
@@ -276,7 +314,6 @@ export default function Home() {
       {/* ═══ INPUT PHASE ═══ */}
       {phase === 'input' && (
         <main className="min-h-dvh">
-          {/* ─── Hero section ─── */}
           <section className="flex items-center justify-center px-4 pt-20 pb-12 md:pt-28 md:pb-16">
             <div className="max-w-lg w-full text-center">
               <div className="mb-10 fade-in-up">
@@ -285,16 +322,12 @@ export default function Home() {
                   <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="24" cy="24" r="22" stroke="url(#compassGrad)" strokeWidth="2.5" opacity="0.7" />
                     <circle cx="24" cy="24" r="17" stroke="url(#compassGrad)" strokeWidth="1.2" opacity="0.35" />
-                    {/* Cardinal marks */}
                     <line x1="24" y1="2" x2="24" y2="7" stroke="url(#compassGrad)" strokeWidth="2" strokeLinecap="round" />
                     <line x1="24" y1="41" x2="24" y2="46" stroke="url(#compassGrad)" strokeWidth="2" strokeLinecap="round" />
                     <line x1="2" y1="24" x2="7" y2="24" stroke="url(#compassGrad)" strokeWidth="2" strokeLinecap="round" />
                     <line x1="41" y1="24" x2="46" y2="24" stroke="url(#compassGrad)" strokeWidth="2" strokeLinecap="round" />
-                    {/* Compass needle — N (coral) */}
                     <polygon points="24,8 21,24 27,24" fill="url(#compassGrad)" />
-                    {/* Compass needle — S (muted) */}
                     <polygon points="24,40 21,24 27,24" fill="rgba(44,37,32,0.18)" />
-                    {/* Center dot */}
                     <circle cx="24" cy="24" r="2.5" fill="url(#compassGrad)" />
                     <defs>
                       <linearGradient id="compassGrad" x1="8" y1="8" x2="40" y2="40">
@@ -314,7 +347,6 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* URL Input */}
               <div className="fade-in-up" style={{ animationDelay: '0.15s' }}>
                 <div className="card p-4 mb-4">
                   <input
@@ -324,9 +356,7 @@ export default function Home() {
                     placeholder="あなたのnoteのURLを教えてください"
                     value={noteUrl}
                     onChange={e => setNoteUrl(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && noteUrl.trim()) handleSubmit();
-                    }}
+                    onKeyDown={e => { if (e.key === 'Enter' && noteUrl.trim()) handleSubmit(); }}
                     disabled={loading}
                   />
                 </div>
@@ -344,7 +374,6 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Error */}
               {error && (
                 <div className="mt-4 p-3 text-xs rounded-lg text-left" style={{
                   background: 'rgba(232, 101, 90, 0.08)',
@@ -355,7 +384,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Fallback */}
               {showFallback && (
                 <div className="mt-6 fade-in-up text-left" style={{ animationDelay: '0.1s' }}>
                   <div className="p-3 text-xs rounded-lg mb-4" style={{
@@ -386,7 +414,6 @@ export default function Home() {
             </div>
           </section>
 
-          {/* ─── How it works ─── */}
           <section className="px-4 pb-16">
             <div className="max-w-2xl mx-auto">
               <h2 className="text-center text-xs font-bold tracking-[3px] uppercase mb-8" style={{ color: 'var(--color-text-dim)' }}>
@@ -418,7 +445,6 @@ export default function Home() {
             </div>
           </section>
 
-          {/* ─── Footer ─── */}
           <footer className="border-t px-4 py-8 text-center" style={{ borderColor: 'var(--color-border)' }}>
             <div className="flex items-center justify-center gap-6 text-[11px]" style={{ color: 'var(--color-text-dim)' }}>
               <Link href="/terms" className="hover:underline" style={{ color: 'var(--color-text-dim)' }}>利用規約</Link>
@@ -462,16 +488,15 @@ export default function Home() {
         <ResultsView
           books={currentBooks}
           currentPage={currentPage}
-          totalRevealedPages={totalRevealedPages}
           totalPages={totalPages}
-          showPagination={showPagination}
-          canRevealMore={canRevealMore}
-          isOnLastRevealedPage={isOnLastRevealedPage}
+          isOnLastPage={isOnLastPage}
+          phase2Loading={phase2Loading}
+          phase2Loaded={phase2Loaded}
           expandedCard={expandedCard}
           setExpandedCard={setExpandedCard}
           handleNextPage={handleNextPage}
           handlePrevPage={handlePrevPage}
-          handleRevealMore={handleRevealMore}
+          handleExploreMore={handleExploreMore}
           handleReset={handleReset}
           bookmarkedTitles={bookmarkedTitles}
           handleBookmark={handleBookmark}
@@ -489,24 +514,23 @@ export default function Home() {
    ═══════════════════════════════════════════════ */
 
 function ResultsView({
-  books, currentPage, totalRevealedPages, totalPages, showPagination,
-  canRevealMore, isOnLastRevealedPage,
+  books, currentPage, totalPages, isOnLastPage,
+  phase2Loading, phase2Loaded,
   expandedCard, setExpandedCard, handleNextPage, handlePrevPage,
-  handleRevealMore, handleReset,
+  handleExploreMore, handleReset,
   bookmarkedTitles, handleBookmark, showSignupModal, setShowSignupModal, user,
 }: {
   books: BookResult[];
   currentPage: number;
-  totalRevealedPages: number;
   totalPages: number;
-  showPagination: boolean;
-  canRevealMore: boolean;
-  isOnLastRevealedPage: boolean;
+  isOnLastPage: boolean;
+  phase2Loading: boolean;
+  phase2Loaded: boolean;
   expandedCard: number | null;
   setExpandedCard: (i: number | null) => void;
   handleNextPage: () => void;
   handlePrevPage: () => void;
-  handleRevealMore: () => void;
+  handleExploreMore: () => void;
   handleReset: () => void;
   bookmarkedTitles: Set<string>;
   handleBookmark: (book: BookResult) => void;
@@ -523,7 +547,7 @@ function ResultsView({
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (touchStart === null) return;
     const diff = touchStart - e.changedTouches[0].clientX;
-    if (diff > 80 && currentPage < totalRevealedPages - 1) handleNextPage();
+    if (diff > 80 && currentPage < totalPages - 1) handleNextPage();
     if (diff < -80 && currentPage > 0) handlePrevPage();
     setTouchStart(null);
   };
@@ -531,8 +555,8 @@ function ResultsView({
   return (
     <main className="min-h-dvh pb-24">
       <header className="pt-10 pb-6 px-6 text-center">
-        {/* Pagination indicator: show page numbers when all books revealed */}
-        {showPagination && (
+        {/* Show page indicator when multiple pages exist */}
+        {totalPages > 1 && (
           <p className="text-[10px] font-bold tracking-[3px] uppercase mb-2" style={{ color: 'var(--color-text-dim)' }}>
             {currentPage + 1} / {totalPages}
           </p>
@@ -553,10 +577,10 @@ function ResultsView({
         ))}
       </div>
 
-      {/* Navigation buttons */}
+      {/* Navigation */}
       <div className="px-6 mt-8 max-w-lg mx-auto space-y-3">
-        {/* Page navigation arrows — always available when multiple pages exist */}
-        {totalRevealedPages > 1 && (
+        {/* Page navigation arrows */}
+        {totalPages > 1 && (
           <div className="flex items-center justify-center gap-4 mb-2">
             <button
               onClick={handlePrevPage}
@@ -567,28 +591,37 @@ function ResultsView({
               ← 前へ
             </button>
             <span className="text-xs font-bold tracking-wider" style={{ color: 'var(--color-text-dim)' }}>
-              {currentPage + 1} / {totalRevealedPages}
+              {currentPage + 1} / {totalPages}
             </span>
             <button
               onClick={handleNextPage}
-              disabled={currentPage >= totalRevealedPages - 1}
+              disabled={isOnLastPage}
               className="btn-ghost px-4 py-2 text-sm"
-              style={{ opacity: currentPage >= totalRevealedPages - 1 ? 0.3 : 1 }}
+              style={{ opacity: isOnLastPage ? 0.3 : 1 }}
             >
               次へ →
             </button>
           </div>
         )}
 
-        {/* "Reveal more" button: show when on last revealed page and more books exist */}
-        {isOnLastRevealedPage && canRevealMore && (
-          <button id="load-more-button" onClick={handleRevealMore} className="btn-ghost w-full">
-            他の本を探す →
+        {/* "他の本を探す" — triggers phase 2 load */}
+        {isOnLastPage && !phase2Loaded && (
+          <button
+            id="load-more-button"
+            onClick={handleExploreMore}
+            disabled={phase2Loading}
+            className="btn-ghost w-full"
+          >
+            {phase2Loading ? (
+              <span className="analyzing-pulse">他の本を探しています…</span>
+            ) : (
+              '他の本を探す →'
+            )}
           </button>
         )}
 
-        {/* End message: show when all revealed and on last page */}
-        {!canRevealMore && isOnLastRevealedPage && (
+        {/* End message: all books loaded and on last page */}
+        {phase2Loaded && isOnLastPage && (
           <div className="text-center fade-in-up">
             <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--color-text-muted)' }}>
               今回はここまで。<br />また別のnoteを書かれたら、いつでもここへいらしてくださいね。<br />あなたを導く羅針盤となる本を、一緒にお探しします。
@@ -631,7 +664,7 @@ function BookCard({ book, index, isExpanded, onToggle, isBookmarked, onBookmark 
   isBookmarked: boolean; onBookmark: () => void;
 }) {
   const [imgError, setImgError] = useState(false);
-  const hasThumbnail = book.thumbnail && book.thumbnail !== '' && book.thumbnail !== '/default-cover.png';
+  const hasThumbnail = book.thumbnail && book.thumbnail !== '';
 
   return (
     <article className="book-card fade-in-up" style={{ animationDelay: `${index * 0.12}s` }}>
@@ -639,8 +672,12 @@ function BookCard({ book, index, isExpanded, onToggle, isBookmarked, onBookmark 
         <div className="book-cover-shadow" />
         {hasThumbnail && !imgError ? (
           /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={book.thumbnail} alt={`${book.title} 表紙`}
-            className="book-cover-img" onError={() => setImgError(true)} loading="lazy"
+          <img
+            src={book.thumbnail}
+            alt={`${book.title} 表紙`}
+            className="book-cover-img"
+            onError={() => setImgError(true)}
+            loading="lazy"
             referrerPolicy="no-referrer"
           />
         ) : (
@@ -659,7 +696,6 @@ function BookCard({ book, index, isExpanded, onToggle, isBookmarked, onBookmark 
       <p className="book-headline">{book.headline}</p>
       <p className="book-oneliner">「{book.oneliner}」</p>
 
-      {/* Bookmark button */}
       <button
         onClick={onBookmark}
         className="book-expand-btn mb-2"

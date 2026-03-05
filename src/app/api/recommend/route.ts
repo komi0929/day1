@@ -3,44 +3,47 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createAuthClient } from '@/lib/supabase';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
-const SYSTEM_PROMPT = `あなたは、ユーザーの言葉を深く愛するプロの編集者です。
+function buildSystemPrompt(count: number) {
+  return `あなたは、ユーザーの言葉を深く愛するプロの編集者です。
 
 ## ミッション
 ユーザーが書いたnote本文をじっくり読み込み、その人の立場、悩み、課題感、そしてまだ言葉にできていない願いを行間から丁寧に読み解いてください。
-その上で、「この人が今まさに読むべき一冊」を9冊分リストアップしてください。
+その上で、「この人が今まさに読むべき一冊」を${count}冊分リストアップしてください。
 
 ## 推薦の鉄則
 1. **既知すぎない名著・良書を選ぶ**：定番中の定番（7つの習慣、嫌われる勇気 等）は避け、実在する具体的な書籍を推薦する
 2. **実在する書籍のみ**：架空の本は絶対に推薦しない。タイトルと著者名は正確に
-3. **9冊すべてが異なる切り口**：同じジャンル・同じ著者に偏らない
+3. **${count}冊すべてが異なる切り口**：同じジャンル・同じ著者に偏らない
 4. **noteの内容に深く紐づく**：汎用的なおすすめではなく、この人のこのnoteだからこそ選ばれた本であること
+5. **ISBN-13は必ず記載する**：実在する書籍のISBN-13コードを正確に記載する。ISBNがわからない場合でも、最も可能性の高いISBN-13を推測して記載する
 
-## 出力JSON（9冊分の配列）
+## 出力JSON（${count}冊分の配列）
 {
   "books": [
     {
       "title": "正確な書籍タイトル",
       "author": "著者名",
-      "label": "noteから導かれる一言オリジナルラベル（例: '足がとまるあなたへ'、'そっと勇気をくれる1冊'）。固定カテゴリではなく、noteの内容に即した温かい言葉",
-      "headline": "なぜおすすめなのかのタイトル（例: '足がとまるあなたに勇気を与えてくれる1冊'）",
+      "isbn": "ISBN-13コード（13桁の数字。例: 9784478025819）。必ず記載する",
+      "label": "noteから導かれる一言オリジナルラベル（例: '足がとまるあなたへ'、'そっと勇気をくれる1冊'）",
+      "headline": "なぜおすすめなのかのタイトル",
       "oneliner": "20〜40字のヒトコト推薦（キャッチーで引きのある一文）",
-      "summary": "客観的な書籍概要（100〜150字。この本がどんな本なのかを簡潔に）",
-      "letter": "手紙形式の推薦文（200〜400字）。必ずユーザーのnote本文の具体的な言葉を引用し、『「〇〇」というあなたの言葉から、こんな想いを受け取りました。だからこそ…』という構成で1対1で語りかけてください。『AIとして分析しました』『推論の結果』といった言葉は絶対に避け、体温を感じる文章にしてください。",
-      "isbn": "ISBNコード（13桁）。わかる場合のみ記載。不明な場合は空文字"
+      "summary": "客観的な書籍概要（100〜150字）",
+      "letter": "手紙形式の推薦文（200〜400字）。必ずユーザーのnote本文の具体的な言葉を引用し、体温を感じる文章にしてください。"
     }
   ],
-  "fragments": ["note本文から印象的な一節を5〜8つ抽出（待機画面で表示するため）。各20〜60字程度"]
+  "fragments": ["note本文から印象的な一節を5〜8つ抽出。各20〜60字程度"]
 }`;
+}
 
 interface BookFromAI {
   title: string;
   author: string;
+  isbn?: string;
   label: string;
   headline: string;
   oneliner: string;
   summary: string;
   letter: string;
-  isbn?: string;
 }
 
 interface BookResult extends BookFromAI {
@@ -59,9 +62,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Rate limit: 3 requests per minute per IP (LLM calls are expensive)
+    // Rate limit: 6 requests per minute per IP (now two-phase, so doubled)
     const ip = getClientIp(req);
-    const { success: rateLimitOk } = rateLimit(`recommend:${ip}`, { maxRequests: 3, windowMs: 60_000 });
+    const { success: rateLimitOk } = rateLimit(`recommend:${ip}`, { maxRequests: 6, windowMs: 60_000 });
     if (!rateLimitOk) {
       return NextResponse.json(
         { error: 'RATE_LIMITED', message: '少しお時間をおいてから、もう一度お試しください。' },
@@ -69,7 +72,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { body: noteBody, title: noteTitle } = await req.json();
+    const { body: noteBody, title: noteTitle, phase, excludeTitles } = await req.json();
 
     if (!noteBody || typeof noteBody !== 'string' || noteBody.trim().length < 50) {
       return NextResponse.json(
@@ -86,14 +89,17 @@ export async function POST(req: Request) {
       );
     }
 
-    // Phase 1: Deep profiling + book recommendation via LLM
+    // Determine count based on phase
+    const isPhase2 = phase === 2;
+    const bookCount = isPhase2 ? 6 : 3;
+
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.9,
-        maxOutputTokens: 65536,
+        maxOutputTokens: isPhase2 ? 65536 : 16384,
       },
     });
 
@@ -111,16 +117,21 @@ export async function POST(req: Request) {
             .order('created_at', { ascending: false })
             .limit(5);
           if (profiles && profiles.length > 0) {
-            pastContext = `\n\n## あなたはこのユーザーの専属編集者です\nこれまでの対話から蓄積された「心のカルテ」があります。手紙の冒頭で、過去と今回の変化や時間経過に優しく触れてください。\n※ 「解決した」等と勝手に断定せず、どんな話題の転換も肯定的に受け止める表現にすること。\n※ 例：「前回は〇〇について立ち止まっておられましたが、今日は少し視線が変わりましたね」「あの時の言葉を経て、今があるのですね」\n\n### 過去の心のカルテ（新しい順）\n${profiles.map((p, i) => `[${i + 1}] ${new Date(p.created_at).toLocaleDateString('ja-JP')}:\n${p.summary}`).join('\n\n')}`;
+            pastContext = `\n\n## あなたはこのユーザーの専属編集者です\nこれまでの対話から蓄積された「心のカルテ」があります。手紙の冒頭で、過去と今回の変化や時間経過に優しく触れてください。\n\n### 過去の心のカルテ（新しい順）\n${profiles.map((p, i) => `[${i + 1}] ${new Date(p.created_at).toLocaleDateString('ja-JP')}:\n${p.summary}`).join('\n\n')}`;
           }
         }
       } catch (e) {
         console.error('Failed to fetch heart profiles:', e);
-        // Non-critical — continue without past context
       }
     }
 
-    const userPrompt = `以下のnote記事をじっくり読み込み、この著者の立場・悩み・課題感・まだ言葉にできていない願いを読み解いた上で、「今読んでほしい一冊」を9冊推薦してください。
+    // Build exclusion instruction for phase 2
+    let exclusionNote = '';
+    if (isPhase2 && excludeTitles && Array.isArray(excludeTitles) && excludeTitles.length > 0) {
+      exclusionNote = `\n\n【除外する書籍】\n以下の書籍はフェーズ1で既に推薦済みです。絶対に重複しないでください：\n${excludeTitles.map((t: string) => `- ${t}`).join('\n')}`;
+    }
+
+    const userPrompt = `以下のnote記事をじっくり読み込み、この著者の立場・悩み・課題感・まだ言葉にできていない願いを読み解いた上で、「今読んでほしい一冊」を${bookCount}冊推薦してください。
 
 ━━━━━━━━━━━━━━━━
 ■ note記事タイトル: ${noteTitle || '（タイトルなし）'}
@@ -129,18 +140,18 @@ ${noteBody.trim().slice(0, 8000)}
 ━━━━━━━━━━━━━━━━
 
 【重要な指示】
-- 9冊すべて実在する書籍であること（架空の本は禁止）
+- ${bookCount}冊すべて実在する書籍であること（架空の本は禁止）
 - 和書・洋書（翻訳書）いずれも可
 - 定番すぎるベストセラーは避け、知る人ぞ知る名著・良書を優先
 - note記事の具体的な言葉を引用した手紙形式の推薦文を各本に書く。「AI」「推論」「分析」といった機械的な言葉は絶対に使わない
-- fragmentsはnote本文から印象的な一節を5〜8つ抽出する
-- isbnフィールド: 書籍のISBN-13がわかる場合は記載する。不明な場合は空文字""とする
+${isPhase2 ? '' : '- fragmentsはnote本文から印象的な一節を5〜8つ抽出する'}
+- isbn: 各書籍のISBN-13コードを必ず記載する。正確なISBNがわかる場合はそれを、わからない場合は最も可能性の高いISBN-13を記載する${exclusionNote}
 
 指定されたJSON形式のみを出力してください。`;
 
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      systemInstruction: { role: 'model', parts: [{ text: SYSTEM_PROMPT + pastContext }] },
+      systemInstruction: { role: 'model', parts: [{ text: buildSystemPrompt(bookCount) + pastContext }] },
     });
 
     const rawText = result.response.text();
@@ -155,21 +166,24 @@ ${noteBody.trim().slice(0, 8000)}
     const books: BookFromAI[] = aiResult.books || [];
     const fragments: string[] = aiResult.fragments || [];
 
-    // Phase 2: Fetch book thumbnails from Google Books API (with improved search)
-    const enrichedBooks: BookResult[] = await Promise.all(
-      books.map(async (book) => {
-        const thumbnail = await searchGoogleBooksThumbnail(book.title, book.author, book.isbn);
-        return {
-          ...book,
-          thumbnail,
-          amazonUrl: generateAmazonUrl(book.title, book.author),
-        };
-      })
-    );
+    // Build results — thumbnail will be loaded client-side from NDL
+    const enrichedBooks: BookResult[] = books.map((book) => {
+      // Clean ISBN: ensure 13 digits only
+      const cleanIsbn = (book.isbn || '').replace(/[^0-9]/g, '');
+      const validIsbn = cleanIsbn.length === 13 ? cleanIsbn : '';
+
+      return {
+        ...book,
+        isbn: validIsbn,
+        // Thumbnail: use NDL as primary (loaded client-side), empty string means use placeholder
+        thumbnail: validIsbn ? `https://ndlsearch.ndl.go.jp/thumbnail/${validIsbn}.jpg` : '',
+        amazonUrl: generateAmazonUrl(book.title, book.author),
+      };
+    });
 
     return NextResponse.json({
       books: enrichedBooks,
-      fragments,
+      fragments: isPhase2 ? [] : fragments,
     });
   } catch (error: unknown) {
     console.error('Recommend API error:', error);
@@ -178,70 +192,6 @@ ${noteBody.trim().slice(0, 8000)}
       { status: 500 }
     );
   }
-}
-
-/**
- * Search Google Books API for a book thumbnail.
- * Uses multiple strategies: ISBN → exact title → title+author → title only
- */
-async function searchGoogleBooksThumbnail(title: string, author: string, isbn?: string): Promise<string> {
-  const strategies: string[] = [];
-
-  // Strategy 1: ISBN search (most reliable)
-  if (isbn && isbn.length >= 10) {
-    strategies.push(`isbn:${isbn}`);
-  }
-
-  // Strategy 2: intitle search with author
-  strategies.push(`intitle:${title}+inauthor:${author}`);
-
-  // Strategy 3: title + author as free text
-  strategies.push(`${title} ${author}`);
-
-  // Strategy 4: title only
-  strategies.push(title);
-
-  for (const query of strategies) {
-    try {
-      const encoded = encodeURIComponent(query);
-      const res = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=${encoded}&maxResults=3&printType=books`,
-        { signal: AbortSignal.timeout(5000) }
-      );
-
-      if (!res.ok) continue;
-
-      const data = await res.json();
-      const items = data.items;
-      if (!items || items.length === 0) continue;
-
-      // Find the best match with a thumbnail
-      for (const item of items) {
-        const links = item?.volumeInfo?.imageLinks;
-        if (!links) continue;
-
-        let thumb = links.extraLarge || links.large || links.medium || links.small || links.thumbnail || links.smallThumbnail || '';
-        if (!thumb) continue;
-
-        // Convert to HTTPS
-        thumb = thumb.replace(/^http:/, 'https:');
-        // Remove existing zoom parameter
-        thumb = thumb.replace(/&zoom=\d+/, '');
-        // Request higher quality
-        if (!thumb.includes('zoom=')) {
-          thumb += '&zoom=2';
-        }
-
-        return thumb;
-      }
-    } catch {
-      // Try next strategy
-      continue;
-    }
-  }
-
-  // No thumbnail found from any strategy
-  return '';
 }
 
 function generateAmazonUrl(title: string, author: string): string {
