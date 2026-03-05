@@ -25,7 +25,8 @@ const SYSTEM_PROMPT = `あなたは、ユーザーの言葉を深く愛するプ
       "headline": "なぜおすすめなのかのタイトル（例: '足がとまるあなたに勇気を与えてくれる1冊'）",
       "oneliner": "20〜40字のヒトコト推薦（キャッチーで引きのある一文）",
       "summary": "客観的な書籍概要（100〜150字。この本がどんな本なのかを簡潔に）",
-      "letter": "手紙形式の推薦文（200〜400字）。必ずユーザーのnote本文の具体的な言葉を引用し、『「〇〇」というあなたの言葉から、こんな想いを受け取りました。だからこそ…』という構成で1対1で語りかけてください。『AIとして分析しました』『推論の結果』といった言葉は絶対に避け、体温を感じる文章にしてください。"
+      "letter": "手紙形式の推薦文（200〜400字）。必ずユーザーのnote本文の具体的な言葉を引用し、『「〇〇」というあなたの言葉から、こんな想いを受け取りました。だからこそ…』という構成で1対1で語りかけてください。『AIとして分析しました』『推論の結果』といった言葉は絶対に避け、体温を感じる文章にしてください。",
+      "isbn": "ISBNコード（13桁）。わかる場合のみ記載。不明な場合は空文字"
     }
   ],
   "fragments": ["note本文から印象的な一節を5〜8つ抽出（待機画面で表示するため）。各20〜60字程度"]
@@ -39,6 +40,7 @@ interface BookFromAI {
   oneliner: string;
   summary: string;
   letter: string;
+  isbn?: string;
 }
 
 interface BookResult extends BookFromAI {
@@ -132,6 +134,7 @@ ${noteBody.trim().slice(0, 8000)}
 - 定番すぎるベストセラーは避け、知る人ぞ知る名著・良書を優先
 - note記事の具体的な言葉を引用した手紙形式の推薦文を各本に書く。「AI」「推論」「分析」といった機械的な言葉は絶対に使わない
 - fragmentsはnote本文から印象的な一節を5〜8つ抽出する
+- isbnフィールド: 書籍のISBN-13がわかる場合は記載する。不明な場合は空文字""とする
 
 指定されたJSON形式のみを出力してください。`;
 
@@ -152,13 +155,13 @@ ${noteBody.trim().slice(0, 8000)}
     const books: BookFromAI[] = aiResult.books || [];
     const fragments: string[] = aiResult.fragments || [];
 
-    // Phase 2: Fetch book info from Google Books API
+    // Phase 2: Fetch book thumbnails from Google Books API (with improved search)
     const enrichedBooks: BookResult[] = await Promise.all(
       books.map(async (book) => {
-        const bookInfo = await searchGoogleBooks(book.title, book.author);
+        const thumbnail = await searchGoogleBooksThumbnail(book.title, book.author, book.isbn);
         return {
           ...book,
-          thumbnail: bookInfo.thumbnail || '/default-cover.png',
+          thumbnail,
           amazonUrl: generateAmazonUrl(book.title, book.author),
         };
       })
@@ -177,40 +180,68 @@ ${noteBody.trim().slice(0, 8000)}
   }
 }
 
-async function searchGoogleBooks(title: string, author: string): Promise<{ thumbnail: string }> {
-  try {
-    const query = encodeURIComponent(`${title} ${author}`);
-    const res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=1&langRestrict=ja&printType=books`,
-      { signal: AbortSignal.timeout(5000) }
-    );
+/**
+ * Search Google Books API for a book thumbnail.
+ * Uses multiple strategies: ISBN → exact title → title+author → title only
+ */
+async function searchGoogleBooksThumbnail(title: string, author: string, isbn?: string): Promise<string> {
+  const strategies: string[] = [];
 
-    if (!res.ok) return { thumbnail: '' };
-
-    const data = await res.json();
-    const item = data.items?.[0];
-
-    if (!item?.volumeInfo?.imageLinks) return { thumbnail: '' };
-
-    // Get the highest quality thumbnail available
-    const links = item.volumeInfo.imageLinks;
-    let thumbnail = links.extraLarge || links.large || links.medium || links.small || links.thumbnail || links.smallThumbnail || '';
-
-    // Convert to HTTPS and get larger image
-    if (thumbnail) {
-      thumbnail = thumbnail.replace(/^http:/, 'https:');
-      // Remove zoom parameter and set to higher quality
-      thumbnail = thumbnail.replace(/&zoom=\d+/, '');
-      // Try to get larger image by modifying the URL
-      if (!thumbnail.includes('zoom=')) {
-        thumbnail += '&zoom=2';
-      }
-    }
-
-    return { thumbnail };
-  } catch {
-    return { thumbnail: '' };
+  // Strategy 1: ISBN search (most reliable)
+  if (isbn && isbn.length >= 10) {
+    strategies.push(`isbn:${isbn}`);
   }
+
+  // Strategy 2: intitle search with author
+  strategies.push(`intitle:${title}+inauthor:${author}`);
+
+  // Strategy 3: title + author as free text
+  strategies.push(`${title} ${author}`);
+
+  // Strategy 4: title only
+  strategies.push(title);
+
+  for (const query of strategies) {
+    try {
+      const encoded = encodeURIComponent(query);
+      const res = await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=${encoded}&maxResults=3&printType=books`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      const items = data.items;
+      if (!items || items.length === 0) continue;
+
+      // Find the best match with a thumbnail
+      for (const item of items) {
+        const links = item?.volumeInfo?.imageLinks;
+        if (!links) continue;
+
+        let thumb = links.extraLarge || links.large || links.medium || links.small || links.thumbnail || links.smallThumbnail || '';
+        if (!thumb) continue;
+
+        // Convert to HTTPS
+        thumb = thumb.replace(/^http:/, 'https:');
+        // Remove existing zoom parameter
+        thumb = thumb.replace(/&zoom=\d+/, '');
+        // Request higher quality
+        if (!thumb.includes('zoom=')) {
+          thumb += '&zoom=2';
+        }
+
+        return thumb;
+      }
+    } catch {
+      // Try next strategy
+      continue;
+    }
+  }
+
+  // No thumbnail found from any strategy
+  return '';
 }
 
 function generateAmazonUrl(title: string, author: string): string {

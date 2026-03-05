@@ -30,9 +30,10 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Results
+  // Results — progressive loading
   const [allBooks, setAllBooks] = useState<BookResult[]>([]);
   const [fragments, setFragments] = useState<string[]>([]);
+  const [revealedCount, setRevealedCount] = useState(0); // How many books have been "revealed" (user has unlocked)
   const [currentPage, setCurrentPage] = useState(0);
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [bookmarkedTitles, setBookmarkedTitles] = useState<Set<string>>(new Set());
@@ -111,6 +112,8 @@ export default function Home() {
       const data = await res.json();
       setAllBooks(data.books || []);
       setFragments(data.fragments || []);
+      // Initially reveal only first 3 books
+      setRevealedCount(3);
       setCurrentPage(0);
       setExpandedCard(null);
       setPhase('results');
@@ -211,21 +214,45 @@ export default function Home() {
     }
   }, [phase, noteBody, fragments.length]);
 
-  /* ─── Pagination ─── */
+  /* ─── Progressive loading: revealed books and pagination ─── */
   const booksPerPage = 3;
-  const totalPages = Math.ceil(allBooks.length / booksPerPage);
-  const currentBooks = allBooks.slice(
+  const revealedBooks = allBooks.slice(0, revealedCount);
+  const totalRevealedPages = Math.ceil(revealedBooks.length / booksPerPage);
+  const currentBooks = revealedBooks.slice(
     currentPage * booksPerPage,
     (currentPage + 1) * booksPerPage
   );
-  const isLastPage = currentPage >= totalPages - 1;
+  const canRevealMore = revealedCount < allBooks.length;
+  const isOnLastRevealedPage = currentPage >= totalRevealedPages - 1;
+
+  // Show pagination (1/3 format) only after all 9 are revealed
+  const showPagination = revealedCount >= allBooks.length && allBooks.length > 0;
+  const totalPages = Math.ceil(allBooks.length / booksPerPage);
 
   const handleNextPage = () => {
-    if (!isLastPage) {
+    if (currentPage < totalRevealedPages - 1) {
       setCurrentPage(prev => prev + 1);
       setExpandedCard(null);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(prev => prev - 1);
+      setExpandedCard(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleRevealMore = () => {
+    // Reveal next 3 books and go to that page
+    const newRevealed = Math.min(revealedCount + 3, allBooks.length);
+    setRevealedCount(newRevealed);
+    const newPage = Math.ceil(newRevealed / booksPerPage) - 1;
+    setCurrentPage(newPage);
+    setExpandedCard(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleReset = () => {
@@ -236,6 +263,7 @@ export default function Home() {
     setShowFallback(false);
     setAllBooks([]);
     setFragments([]);
+    setRevealedCount(0);
     setCurrentPage(0);
     setExpandedCard(null);
     setError(null);
@@ -252,7 +280,30 @@ export default function Home() {
           <section className="flex items-center justify-center px-4 pt-20 pb-12 md:pt-28 md:pb-16">
             <div className="max-w-lg w-full text-center">
               <div className="mb-10 fade-in-up">
-                <div className="text-5xl mb-5 opacity-80">📖</div>
+                {/* Compass SVG icon */}
+                <div className="mx-auto mb-5 w-14 h-14 flex items-center justify-center">
+                  <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="24" cy="24" r="22" stroke="url(#compassGrad)" strokeWidth="2.5" opacity="0.7" />
+                    <circle cx="24" cy="24" r="17" stroke="url(#compassGrad)" strokeWidth="1.2" opacity="0.35" />
+                    {/* Cardinal marks */}
+                    <line x1="24" y1="2" x2="24" y2="7" stroke="url(#compassGrad)" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="24" y1="41" x2="24" y2="46" stroke="url(#compassGrad)" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="2" y1="24" x2="7" y2="24" stroke="url(#compassGrad)" strokeWidth="2" strokeLinecap="round" />
+                    <line x1="41" y1="24" x2="46" y2="24" stroke="url(#compassGrad)" strokeWidth="2" strokeLinecap="round" />
+                    {/* Compass needle — N (coral) */}
+                    <polygon points="24,8 21,24 27,24" fill="url(#compassGrad)" />
+                    {/* Compass needle — S (muted) */}
+                    <polygon points="24,40 21,24 27,24" fill="rgba(44,37,32,0.18)" />
+                    {/* Center dot */}
+                    <circle cx="24" cy="24" r="2.5" fill="url(#compassGrad)" />
+                    <defs>
+                      <linearGradient id="compassGrad" x1="8" y1="8" x2="40" y2="40">
+                        <stop offset="0%" stopColor="#E8655A" />
+                        <stop offset="100%" stopColor="#F2A87C" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
                 <h1 className="text-3xl md:text-4xl font-black text-gradient tracking-tight mb-4">
                   compass
                 </h1>
@@ -411,11 +462,16 @@ export default function Home() {
         <ResultsView
           books={currentBooks}
           currentPage={currentPage}
+          totalRevealedPages={totalRevealedPages}
           totalPages={totalPages}
-          isLastPage={isLastPage}
+          showPagination={showPagination}
+          canRevealMore={canRevealMore}
+          isOnLastRevealedPage={isOnLastRevealedPage}
           expandedCard={expandedCard}
           setExpandedCard={setExpandedCard}
           handleNextPage={handleNextPage}
+          handlePrevPage={handlePrevPage}
+          handleRevealMore={handleRevealMore}
           handleReset={handleReset}
           bookmarkedTitles={bookmarkedTitles}
           handleBookmark={handleBookmark}
@@ -433,17 +489,24 @@ export default function Home() {
    ═══════════════════════════════════════════════ */
 
 function ResultsView({
-  books, currentPage, totalPages, isLastPage,
-  expandedCard, setExpandedCard, handleNextPage, handleReset,
+  books, currentPage, totalRevealedPages, totalPages, showPagination,
+  canRevealMore, isOnLastRevealedPage,
+  expandedCard, setExpandedCard, handleNextPage, handlePrevPage,
+  handleRevealMore, handleReset,
   bookmarkedTitles, handleBookmark, showSignupModal, setShowSignupModal, user,
 }: {
   books: BookResult[];
   currentPage: number;
+  totalRevealedPages: number;
   totalPages: number;
-  isLastPage: boolean;
+  showPagination: boolean;
+  canRevealMore: boolean;
+  isOnLastRevealedPage: boolean;
   expandedCard: number | null;
   setExpandedCard: (i: number | null) => void;
   handleNextPage: () => void;
+  handlePrevPage: () => void;
+  handleRevealMore: () => void;
   handleReset: () => void;
   bookmarkedTitles: Set<string>;
   handleBookmark: (book: BookResult) => void;
@@ -460,16 +523,20 @@ function ResultsView({
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (touchStart === null) return;
     const diff = touchStart - e.changedTouches[0].clientX;
-    if (diff > 80 && !isLastPage) handleNextPage();
+    if (diff > 80 && currentPage < totalRevealedPages - 1) handleNextPage();
+    if (diff < -80 && currentPage > 0) handlePrevPage();
     setTouchStart(null);
   };
 
   return (
     <main className="min-h-dvh pb-24">
       <header className="pt-10 pb-6 px-6 text-center">
-        <p className="text-[10px] font-bold tracking-[3px] uppercase mb-2" style={{ color: 'var(--color-text-dim)' }}>
-          {currentPage + 1} / {totalPages}
-        </p>
+        {/* Pagination indicator: show page numbers when all books revealed */}
+        {showPagination && (
+          <p className="text-[10px] font-bold tracking-[3px] uppercase mb-2" style={{ color: 'var(--color-text-dim)' }}>
+            {currentPage + 1} / {totalPages}
+          </p>
+        )}
         <h2 className="text-xl font-bold text-gradient">あなたへのお手紙と一冊</h2>
       </header>
 
@@ -486,12 +553,42 @@ function ResultsView({
         ))}
       </div>
 
-      <div className="px-6 mt-8 max-w-lg mx-auto">
-        {!isLastPage ? (
-          <button id="load-more-button" onClick={handleNextPage} className="btn-ghost w-full">
-            ほかの本も見てみる →
+      {/* Navigation buttons */}
+      <div className="px-6 mt-8 max-w-lg mx-auto space-y-3">
+        {/* Page navigation arrows — always available when multiple pages exist */}
+        {totalRevealedPages > 1 && (
+          <div className="flex items-center justify-center gap-4 mb-2">
+            <button
+              onClick={handlePrevPage}
+              disabled={currentPage === 0}
+              className="btn-ghost px-4 py-2 text-sm"
+              style={{ opacity: currentPage === 0 ? 0.3 : 1 }}
+            >
+              ← 前へ
+            </button>
+            <span className="text-xs font-bold tracking-wider" style={{ color: 'var(--color-text-dim)' }}>
+              {currentPage + 1} / {totalRevealedPages}
+            </span>
+            <button
+              onClick={handleNextPage}
+              disabled={currentPage >= totalRevealedPages - 1}
+              className="btn-ghost px-4 py-2 text-sm"
+              style={{ opacity: currentPage >= totalRevealedPages - 1 ? 0.3 : 1 }}
+            >
+              次へ →
+            </button>
+          </div>
+        )}
+
+        {/* "Reveal more" button: show when on last revealed page and more books exist */}
+        {isOnLastRevealedPage && canRevealMore && (
+          <button id="load-more-button" onClick={handleRevealMore} className="btn-ghost w-full">
+            他の本を探す →
           </button>
-        ) : (
+        )}
+
+        {/* End message: show when all revealed and on last page */}
+        {!canRevealMore && isOnLastRevealedPage && (
           <div className="text-center fade-in-up">
             <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--color-text-muted)' }}>
               今回はここまで。<br />また別のnoteを書かれたら、いつでもここへいらしてくださいね。<br />あなたを導く羅針盤となる本を、一緒にお探しします。
@@ -534,14 +631,26 @@ function BookCard({ book, index, isExpanded, onToggle, isBookmarked, onBookmark 
   isBookmarked: boolean; onBookmark: () => void;
 }) {
   const [imgError, setImgError] = useState(false);
+  const hasThumbnail = book.thumbnail && book.thumbnail !== '' && book.thumbnail !== '/default-cover.png';
 
   return (
     <article className="book-card fade-in-up" style={{ animationDelay: `${index * 0.12}s` }}>
       <div className="book-cover-wrapper">
         <div className="book-cover-shadow" />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={imgError ? '/default-cover.png' : book.thumbnail} alt={`${book.title} 表紙`}
-          className="book-cover-img" onError={() => setImgError(true)} loading="lazy" />
+        {hasThumbnail && !imgError ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={book.thumbnail} alt={`${book.title} 表紙`}
+            className="book-cover-img" onError={() => setImgError(true)} loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="book-cover-placeholder">
+            <div className="book-cover-placeholder-inner">
+              <span className="book-cover-placeholder-title">{book.title}</span>
+              <span className="book-cover-placeholder-author">{book.author}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="book-label">{book.label}</div>
