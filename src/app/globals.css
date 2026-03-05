@@ -526,6 +526,54 @@ input, textarea, button {
 }
 
 /* ═══════════════════════════════════════════════
+   使い方ステップ
+   ═══════════════════════════════════════════════ */
+.how-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.how-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.how-step-num {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--color-accent), var(--g-peach));
+  color: #1A1512;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.how-step-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.how-step-desc {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}
+
+/* ═══════════════════════════════════════════════
    アニメーション
    ═══════════════════════════════════════════════ */
 @keyframes pulse-soft {

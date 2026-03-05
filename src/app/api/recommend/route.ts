@@ -172,7 +172,6 @@ async function searchGoogleBooks(title: string, author: string): Promise<{ thumb
 
 function generateAmazonUrl(title: string, author: string): string {
   const query = encodeURIComponent(`${title} ${author}`);
-  // Associate tag can be customized
-  const tag = 'notememo-22';
+  const tag = process.env.AMAZON_ASSOCIATE_TAG || 'notememo-22';
   return `https://www.amazon.co.jp/s?k=${query}&tag=${tag}`;
 }
