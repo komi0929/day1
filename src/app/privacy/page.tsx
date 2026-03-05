@@ -21,7 +21,7 @@ export default function PrivacyPage() {
         <div className="card p-6 space-y-6 text-sm leading-relaxed" style={{ color: 'var(--color-text)' }}>
 
           <section>
-            <p>株式会社ヒトコト（以下「当社」）は、Webアプリケーション「あなたのための1冊」（以下「本サービス」）における個人情報の取扱いについて、以下の通りプライバシーポリシーを定めます。</p>
+            <p>株式会社ヒトコト（以下「当社」）は、Webアプリケーション「compass」（以下「本サービス」）における個人情報の取扱いについて、以下の通りプライバシーポリシーを定めます。</p>
           </section>
 
           <section>

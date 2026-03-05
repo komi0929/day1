@@ -1,9 +1,5 @@
 User-agent: *
 Allow: /
 Disallow: /api/
-Disallow: /share
-Disallow: /onboarding
-Disallow: /learn
-Disallow: /complete
 
-Sitemap: https://day1.hitokoto.tech/sitemap.xml
+Sitemap: https://compass.hitokoto.tech/sitemap.xml
