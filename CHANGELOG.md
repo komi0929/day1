@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-03-06] — 自律開発の仕組み化
+
+### 🔧 Config
+- `GEMINI.md` に「自律完遂ルール」セクション追加（中間確認の明示的禁止、自己判断リスト、報告フォーマット）
+- `/pre-release` ワークフロー新設（7項目の自動チェックリスト）
+- `/consistency-check` ワークフロー新設（名称・システム用語・メタ情報の自動整合性検証）
+- `/auto-record` ワークフローに一貫性チェック前提ステップ追加
+
+### 🗑️ Cleanup
+- デッドコード削除: `supabase.ts`, `auth-context.tsx`, `security.ts`（現アプリで未使用）
+- 旧スキーマ削除: `supabase_schema.sql`, `supabase_migration_v2.sql`
+
 ## [2026-03-06] — リリース準備修正
 
 ### 🐛 Bug Fix
