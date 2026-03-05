@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createAuthClient } from '@/lib/supabase';
 
 const SYSTEM_PROMPT = `あなたは、ユーザーの言葉を深く愛するプロの編集者です。
 
@@ -46,7 +47,7 @@ interface BookResult extends BookFromAI {
 
 export async function POST(req: Request) {
   try {
-    const { body: noteBody, title: noteTitle } = await req.json();
+    const { body: noteBody, title: noteTitle, token: authToken } = await req.json();
 
     if (!noteBody || typeof noteBody !== 'string' || noteBody.trim().length < 50) {
       return NextResponse.json(
@@ -74,6 +75,27 @@ export async function POST(req: Request) {
       },
     });
 
+    // Fetch past heart profiles for returning users (continuity counseling)
+    let pastContext = '';
+    if (authToken) {
+      try {
+        const supabase = createAuthClient(authToken);
+        if (supabase) {
+          const { data: profiles } = await supabase
+            .from('heart_profiles')
+            .select('summary, created_at')
+            .order('created_at', { ascending: false })
+            .limit(5);
+          if (profiles && profiles.length > 0) {
+            pastContext = `\n\n## あなたはこのユーザーの専属編集者です\nこれまでの対話から蓄積された「心のカルテ」があります。手紙の冒頭で、過去と今回の変化や時間経過に優しく触れてください。\n※ 「解決した」等と勝手に断定せず、どんな話題の転換も肯定的に受け止める表現にすること。\n※ 例：「前回は〇〇について立ち止まっておられましたが、今日は少し視線が変わりましたね」「あの時の言葉を経て、今があるのですね」\n\n### 過去の心のカルテ（新しい順）\n${profiles.map((p, i) => `[${i + 1}] ${new Date(p.created_at).toLocaleDateString('ja-JP')}:\n${p.summary}`).join('\n\n')}`;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch heart profiles:', e);
+        // Non-critical — continue without past context
+      }
+    }
+
     const userPrompt = `以下のnote記事をじっくり読み込み、この著者の立場・悩み・課題感・まだ言葉にできていない願いを読み解いた上で、「今読んでほしい一冊」を9冊推薦してください。
 
 ━━━━━━━━━━━━━━━━
@@ -93,7 +115,7 @@ ${noteBody.trim().slice(0, 8000)}
 
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      systemInstruction: { role: 'model', parts: [{ text: SYSTEM_PROMPT }] },
+      systemInstruction: { role: 'model', parts: [{ text: SYSTEM_PROMPT + pastContext }] },
     });
 
     const rawText = result.response.text();

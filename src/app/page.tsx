@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 
 /* ─── Types ─── */
 interface BookResult {
@@ -20,6 +21,7 @@ type AppPhase = 'input' | 'waiting' | 'results';
 
 /* ─── Main Component ─── */
 export default function Home() {
+  const { user, session } = useAuth();
   const [phase, setPhase] = useState<AppPhase>('input');
   const [noteUrl, setNoteUrl] = useState('');
   const [noteBody, setNoteBody] = useState('');
@@ -33,6 +35,8 @@ export default function Home() {
   const [fragments, setFragments] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
+  const [bookmarkedTitles, setBookmarkedTitles] = useState<Set<string>>(new Set());
+  const [showSignupModal, setShowSignupModal] = useState(false);
 
   // Waiting screen animation
   const [currentFragment, setCurrentFragment] = useState(0);
@@ -91,7 +95,7 @@ export default function Home() {
       const res = await fetch('/api/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body, title }),
+        body: JSON.stringify({ body, title, token: session?.access_token || null }),
       });
 
       if (!res.ok) {
@@ -112,6 +116,65 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  /* ─── Save selection & trigger heart profile (for logged-in users) ─── */
+  useEffect(() => {
+    if (phase !== 'results' || allBooks.length === 0) return;
+    if (!session?.access_token) {
+      // Save to LocalStorage for later migration
+      try {
+        const pending = JSON.parse(localStorage.getItem('compass_pending') || '[]');
+        pending.push({ noteUrl, noteTitle, noteBody: noteBody.slice(0, 500), books: allBooks, fragments, ts: Date.now() });
+        localStorage.setItem('compass_pending', JSON.stringify(pending.slice(-5)));
+      } catch { /* ignore */ }
+      return;
+    }
+    // Save to DB
+    const saveAndProfile = async () => {
+      try {
+        const saveRes = await fetch('/api/save-selection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ noteUrl, noteTitle, noteBody: noteBody.slice(0, 500), books: allBooks, fragments }),
+        });
+        const saveData = await saveRes.json();
+        // Trigger heart profile generation (fire-and-forget)
+        fetch('/api/heart-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ noteUrl, noteTitle, noteBody, selectionId: saveData.selectionId }),
+        }).catch(() => {});
+      } catch { /* non-critical */ }
+    };
+    saveAndProfile();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  /* ─── Bookmark handler ─── */
+  const handleBookmark = useCallback(async (book: BookResult) => {
+    if (!session?.access_token) {
+      // Not logged in — save to localStorage and show signup modal
+      try {
+        const saved = JSON.parse(localStorage.getItem('compass_bookmarks') || '[]');
+        if (!saved.find((b: BookResult) => b.title === book.title && b.author === book.author)) {
+          saved.push(book);
+          localStorage.setItem('compass_bookmarks', JSON.stringify(saved));
+        }
+      } catch { /* ignore */ }
+      setBookmarkedTitles(prev => new Set(prev).add(book.title));
+      setShowSignupModal(true);
+      return;
+    }
+    // Logged in — save to DB
+    setBookmarkedTitles(prev => new Set(prev).add(book.title));
+    try {
+      await fetch('/api/bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ book }),
+      });
+    } catch { /* non-critical */ }
+  }, [session?.access_token]);
 
   /* ─── Fragment rotation for waiting screen ─── */
   useEffect(() => {
@@ -349,6 +412,11 @@ export default function Home() {
           setExpandedCard={setExpandedCard}
           handleNextPage={handleNextPage}
           handleReset={handleReset}
+          bookmarkedTitles={bookmarkedTitles}
+          handleBookmark={handleBookmark}
+          showSignupModal={showSignupModal}
+          setShowSignupModal={setShowSignupModal}
+          user={user}
         />
       )}
     </div>
@@ -362,6 +430,7 @@ export default function Home() {
 function ResultsView({
   books, currentPage, totalPages, isLastPage,
   expandedCard, setExpandedCard, handleNextPage, handleReset,
+  bookmarkedTitles, handleBookmark, showSignupModal, setShowSignupModal, user,
 }: {
   books: BookResult[];
   currentPage: number;
@@ -371,6 +440,11 @@ function ResultsView({
   setExpandedCard: (i: number | null) => void;
   handleNextPage: () => void;
   handleReset: () => void;
+  bookmarkedTitles: Set<string>;
+  handleBookmark: (book: BookResult) => void;
+  showSignupModal: boolean;
+  setShowSignupModal: (v: boolean) => void;
+  user: { id: string } | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -401,6 +475,8 @@ function ResultsView({
           <BookCard key={`${currentPage}-${i}`} book={book} index={i}
             isExpanded={expandedCard === i}
             onToggle={() => setExpandedCard(expandedCard === i ? null : i)}
+            isBookmarked={bookmarkedTitles.has(book.title)}
+            onBookmark={() => handleBookmark(book)}
           />
         ))}
       </div>
@@ -421,6 +497,25 @@ function ResultsView({
           </div>
         )}
       </div>
+
+      {/* Signup Modal */}
+      {showSignupModal && !user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'rgba(44,37,32,0.4)', backdropFilter: 'blur(8px)' }}>
+          <div className="card p-8 max-w-sm w-full text-center fade-in-up">
+            <div className="text-4xl mb-4">📚</div>
+            <p className="text-sm leading-loose mb-6" style={{ color: 'var(--color-text)' }}>
+              このお手紙と本を、あなた専用の本棚にそっとしまっておきませんか？<br />
+              次にお会いした時、また続きのお話ができるように。
+            </p>
+            <Link href="/library" className="btn-primary block w-full mb-3 text-center py-3">
+              本棚をつくる（無料）
+            </Link>
+            <button onClick={() => setShowSignupModal(false)} className="text-xs" style={{ color: 'var(--color-text-dim)' }}>
+              あとで
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -429,8 +524,9 @@ function ResultsView({
    Book Card Component
    ═══════════════════════════════════════════════ */
 
-function BookCard({ book, index, isExpanded, onToggle }: {
+function BookCard({ book, index, isExpanded, onToggle, isBookmarked, onBookmark }: {
   book: BookResult; index: number; isExpanded: boolean; onToggle: () => void;
+  isBookmarked: boolean; onBookmark: () => void;
 }) {
   const [imgError, setImgError] = useState(false);
 
@@ -448,6 +544,15 @@ function BookCard({ book, index, isExpanded, onToggle }: {
       <p className="book-author">{book.author}</p>
       <p className="book-headline">{book.headline}</p>
       <p className="book-oneliner">「{book.oneliner}」</p>
+
+      {/* Bookmark button */}
+      <button
+        onClick={onBookmark}
+        className="book-expand-btn mb-2"
+        style={isBookmarked ? { color: 'var(--g-coral)', borderColor: 'rgba(232,101,90,0.3)' } : {}}
+      >
+        {isBookmarked ? '✅ しおりをはさみました' : '🔖 しおりをはさむ'}
+      </button>
 
       <button onClick={onToggle} className="book-expand-btn">
         {isExpanded ? '閉じる' : 'お手紙を読む'}

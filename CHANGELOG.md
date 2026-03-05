@@ -1,5 +1,22 @@
 # Changelog
 
+## [2026-03-06] — かかりつけ私設図書館機能
+
+### ✨ Feature
+- Google OAuth認証（摩擦のないログイン）
+- マイライブラリ（`/library`）— 2タブ構成: 「これまでに綴った言葉たち」「いつか読む本」
+- 「🔖 しおりをはさむ」ボタン（各書籍カードに追加）
+- 感動のピークでの登録モーダル（「本棚をつくる（無料）」）
+- 心のカルテ（裏側でLLMが200字の心理要約を生成・蓄積）
+- 継続カウンセリング（過去カルテを元に手紙の冒頭で時間経過・変化に言及）
+- LocalStorage一時保存 → ログイン後DB紐付け
+- 選書履歴自動保存
+
+### 🔧 Config
+- Supabase DBスキーマ（profiles, selections, bookmarks, heart_profiles）
+- 5つの新規APIルート: save-selection, bookmarks, library, heart-profile + recommend拡張
+- AuthProvider + Providersラッパー
+
 ## [2026-03-06] — 自律開発の仕組み化
 
 ### 🔧 Config
