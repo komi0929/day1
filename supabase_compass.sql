@@ -1,6 +1,7 @@
 -- ============================================
 -- compass — Supabase Database Schema
 -- かかりつけ私設図書館機能
+-- ※ 既存のテーブル・ポリシーがあっても安全に実行可能
 -- ============================================
 -- 1. profiles テーブル（ユーザプロファイル）
 create table if not exists public.profiles (
@@ -10,10 +11,13 @@ create table if not exists public.profiles (
     created_at timestamptz default now()
 );
 alter table public.profiles enable row level security;
+drop policy if exists "Users can view own profile" on public.profiles;
 create policy "Users can view own profile" on public.profiles for
 select using (auth.uid() = id);
+drop policy if exists "Users can update own profile" on public.profiles;
 create policy "Users can update own profile" on public.profiles for
 update using (auth.uid() = id);
+drop policy if exists "Users can insert own profile" on public.profiles;
 create policy "Users can insert own profile" on public.profiles for
 insert with check (auth.uid() = id);
 -- Auto-create profile on signup
@@ -47,8 +51,10 @@ create table if not exists public.selections (
     created_at timestamptz default now()
 );
 alter table public.selections enable row level security;
+drop policy if exists "Users can view own selections" on public.selections;
 create policy "Users can view own selections" on public.selections for
 select using (auth.uid() = user_id);
+drop policy if exists "Users can insert own selections" on public.selections;
 create policy "Users can insert own selections" on public.selections for
 insert with check (auth.uid() = user_id);
 -- 3. bookmarks テーブル（しおりをはさんだ本）
@@ -69,10 +75,13 @@ create table if not exists public.bookmarks (
     unique(user_id, book_title, book_author)
 );
 alter table public.bookmarks enable row level security;
+drop policy if exists "Users can view own bookmarks" on public.bookmarks;
 create policy "Users can view own bookmarks" on public.bookmarks for
 select using (auth.uid() = user_id);
+drop policy if exists "Users can insert own bookmarks" on public.bookmarks;
 create policy "Users can insert own bookmarks" on public.bookmarks for
 insert with check (auth.uid() = user_id);
+drop policy if exists "Users can delete own bookmarks" on public.bookmarks;
 create policy "Users can delete own bookmarks" on public.bookmarks for delete using (auth.uid() = user_id);
 -- 4. heart_profiles テーブル（心のカルテ — ユーザーには見せない）
 create table if not exists public.heart_profiles (
@@ -84,8 +93,10 @@ create table if not exists public.heart_profiles (
     created_at timestamptz default now()
 );
 alter table public.heart_profiles enable row level security;
+drop policy if exists "Users can view own heart_profiles" on public.heart_profiles;
 create policy "Users can view own heart_profiles" on public.heart_profiles for
 select using (auth.uid() = user_id);
+drop policy if exists "Users can insert own heart_profiles" on public.heart_profiles;
 create policy "Users can insert own heart_profiles" on public.heart_profiles for
 insert with check (auth.uid() = user_id);
 -- Indexes
