@@ -58,55 +58,72 @@ interface BookResult extends BookFromAI {
 }
 
 /**
- * Search NDL (National Diet Library) by book title to find the real ISBN-13.
- * This replaces AI-generated ISBNs which are frequently hallucinated.
+ * Search for a book's real ISBN-13 using Google Books API (with API key) + NDL fallback.
+ * Flow: Google Books (title+author → ISBN) → NDL OpenSearch (title → ISBN)
  */
 async function searchIsbnByTitle(title: string, author: string): Promise<string> {
+  // Strategy 1: Google Books API with API key (high rate limit, reliable ISBN data)
+  const apiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
+  if (apiKey) {
+    try {
+      const query = encodeURIComponent(`intitle:${title} inauthor:${author}`);
+      const res = await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=3&fields=items(volumeInfo(title,authors,industryIdentifiers,imageLinks))&key=${apiKey}`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const items = data?.items;
+        if (items && items.length > 0) {
+          for (const item of items) {
+            const identifiers = item?.volumeInfo?.industryIdentifiers || [];
+            // Prefer ISBN_13
+            const isbn13 = identifiers.find((id: { type: string; identifier: string }) => id.type === 'ISBN_13');
+            if (isbn13) {
+              console.log(`[GoogleBooks] Found ISBN-13 for "${title}": ${isbn13.identifier}`);
+              return isbn13.identifier;
+            }
+            // Fallback to ISBN_10 → convert to ISBN_13
+            const isbn10 = identifiers.find((id: { type: string; identifier: string }) => id.type === 'ISBN_10');
+            if (isbn10) {
+              const converted = convertIsbn10to13(isbn10.identifier);
+              console.log(`[GoogleBooks] Converted ISBN-10→13 for "${title}": ${converted}`);
+              return converted;
+            }
+          }
+        }
+      } else {
+        console.warn(`[GoogleBooks] HTTP ${res.status} for "${title}"`);
+      }
+    } catch (e) {
+      console.warn(`[GoogleBooks] Failed for "${title}":`, e);
+    }
+  }
+
+  // Strategy 2: NDL OpenSearch (fallback for Japanese-only books)
   try {
     const query = encodeURIComponent(title);
     const res = await fetch(
       `https://ndlsearch.ndl.go.jp/api/opensearch?title=${query}&cnt=3`,
       { signal: AbortSignal.timeout(5000) }
     );
-    if (!res.ok) return '';
-    const xml = await res.text();
-
-    // Extract all ISBN-13s from the response
-    const isbnMatches = xml.match(/ISBN[^<]*<\/dc:identifier>/g) || [];
-    // Also try the typed identifier pattern
-    const typedMatches = xml.match(/<dc:identifier[^>]*xsi:type="dcndl:ISBN"[^>]*>([^<]+)/g) || [];
-
-    const allIsbns: string[] = [];
-    for (const m of [...isbnMatches, ...typedMatches]) {
-      const digits = m.replace(/[^0-9X]/gi, '');
-      // Accept ISBN-13 (13 digits) or ISBN-10 (10 chars)
-      if (digits.length === 13) {
-        allIsbns.push(digits);
-      } else if (digits.length === 10) {
-        // Convert ISBN-10 to ISBN-13
-        const isbn13 = convertIsbn10to13(digits);
-        if (isbn13) allIsbns.push(isbn13);
+    if (res.ok) {
+      const xml = await res.text();
+      const rawMatches = xml.match(/97[89][-\d]{10,}/g) || [];
+      for (const m of rawMatches) {
+        const digits = m.replace(/[^0-9]/g, '');
+        if (digits.length === 13) {
+          console.log(`[NDL] Found ISBN for "${title}": ${digits}`);
+          return digits;
+        }
       }
     }
-
-    // Also extract from raw text patterns like 978-4-344-03833-2
-    const rawMatches = xml.match(/97[89][-\d]{10,}/g) || [];
-    for (const m of rawMatches) {
-      const digits = m.replace(/[^0-9]/g, '');
-      if (digits.length === 13) allIsbns.push(digits);
-    }
-
-    if (allIsbns.length > 0) {
-      console.log(`[NDL] Found ISBNs for "${title}": ${allIsbns.join(', ')}`);
-      return allIsbns[0];
-    }
-
-    console.log(`[NDL] No ISBN found for "${title}"`);
-    return '';
   } catch (e) {
-    console.warn(`[NDL] Search failed for "${title}":`, e);
-    return '';
+    console.warn(`[NDL] Failed for "${title}":`, e);
   }
+
+  console.log(`[Cover] No ISBN found for: "${title}"`);
+  return '';
 }
 
 function convertIsbn10to13(isbn10: string): string {
