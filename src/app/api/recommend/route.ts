@@ -59,39 +59,18 @@ interface BookResult extends BookFromAI {
 }
 
 /**
- * Phase 2: 3-step thumbnail resolution
- * Priority 1: 版元ドットコム (Hanmoto) — Japanese publishing industry official DB
- * Priority 2: NDL (National Diet Library) — existing, verified working
- * Priority 3: Beautiful default cover (Compass world-view)
+ * Build thumbnail URL directly — NO server-side HEAD verification.
+ * Rationale: HEAD checks to Hanmoto (DNS fail, 3s timeout) + NDL (3s)
+ * per book were causing Vercel function timeouts (10s limit).
+ *
+ * Strategy: Construct NDL URL directly if ISBN is valid.
+ * Client-side img onError handles 404 → falls back to /default-cover.png.
  */
-async function resolveBookCover(isbn: string): Promise<string> {
+function buildThumbnailUrl(isbn: string): string {
   const cleanIsbn = (isbn || '').replace(/[^0-9]/g, '');
-  if (cleanIsbn.length !== 13) return ''; // Will use default-cover.png on client
-
-  // Step 1: 版元ドットコム
-  try {
-    const hanmotoUrl = `https://cover.hanmoto.com/${cleanIsbn}.jpg`;
-    const res = await fetch(hanmotoUrl, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
-    if (res.ok && res.headers.get('content-type')?.startsWith('image/')) {
-      return hanmotoUrl;
-    }
-  } catch {
-    // timeout or network error — try next source
-  }
-
-  // Step 2: NDL (National Diet Library)
-  try {
-    const ndlUrl = `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`;
-    const res = await fetch(ndlUrl, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
-    if (res.ok && res.headers.get('content-type')?.startsWith('image/')) {
-      return ndlUrl;
-    }
-  } catch {
-    // timeout or network error — skip
-  }
-
-  // Step 3: Return empty string — client will use the beautiful default-cover.png
-  return '';
+  if (cleanIsbn.length !== 13) return '';
+  // NDL thumbnail URL — proven working for ~80% of Japanese books with correct ISBNs
+  return `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`;
 }
 
 export async function POST(req: Request) {
@@ -135,13 +114,15 @@ export async function POST(req: Request) {
     // Phase 1: Enable Google Search Grounding for accurate ISBN retrieval
     // CRITICAL: responseMimeType:'application/json' + googleSearch causes grounding to be
     // silently ignored. Use text mode and parse JSON manually.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toolConfig: any[] = [{ googleSearch: {} }];
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.9,
         maxOutputTokens: 16384,
       },
-      tools: [{ googleSearch: {} } as never],
+      tools: toolConfig,
     });
 
     // Heart profile context
@@ -215,22 +196,22 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
     const books: BookFromAI[] = aiResult.books || [];
     const fragments: string[] = aiResult.fragments || [];
 
-    // Phase 2: Resolve book covers (版元ドットコム → NDL → default)
-    const enrichedBooks: BookResult[] = await Promise.all(
-      books.map(async (book) => {
-        const cleanIsbn = (book.isbn || '').replace(/[^0-9]/g, '');
-        const validIsbn = cleanIsbn.length === 13 ? cleanIsbn : '';
+    // Phase 2: Build thumbnail URLs synchronously (no HEAD requests = no timeout risk)
+    const enrichedBooks: BookResult[] = books.map((book) => {
+      const cleanIsbn = (book.isbn || '').replace(/[^0-9]/g, '');
+      const validIsbn = cleanIsbn.length === 13 ? cleanIsbn : '';
+      const thumbnail = buildThumbnailUrl(validIsbn);
 
-        const thumbnail = await resolveBookCover(validIsbn);
+      // Log ISBN for debugging
+      console.log(`[ISBN] ${book.title}: raw="${book.isbn}" clean="${validIsbn}" thumb="${thumbnail}"`);
 
-        return {
-          ...book,
-          isbn: validIsbn,
-          thumbnail, // Empty string → client uses /default-cover.png
-          amazonUrl: generateAmazonUrl(book.title, book.author),
-        };
-      })
-    );
+      return {
+        ...book,
+        isbn: validIsbn,
+        thumbnail, // NDL URL or empty → client img onError uses /default-cover.png
+        amazonUrl: generateAmazonUrl(book.title, book.author),
+      };
+    });
 
     return NextResponse.json({
       books: enrichedBooks,

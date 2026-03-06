@@ -1,5 +1,13 @@
 # Changelog
 
+## [2026-03-06] — 表紙画像: サーバーサイドHEAD廃止 + NDL直構築
+
+### 🐛 Critical Fix
+- **Vercel関数タイムアウト解消**: 版元ドットコム（DNS到達不可→3秒×3冊=9秒浪費）+NDL HEAD検証を全廃止
+- **同期NDL URL構築**: isbn→NDL URLを0msで構築、クライアント側`img onError`で404時にdefault-cover.pngへフォールバック
+- **googleSearch tool型修正**: `as never`キャスト除去、`any[]`で正しく渡す
+- **ISBNデバッグログ追加**: Vercelログで各書籍のISBN取得状況を確認可能
+
 ## [2026-03-06] — 本棚UX全面改修「思い出のタイムライン」
 
 ### 🎨 UX Overhaul
