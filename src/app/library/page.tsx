@@ -405,13 +405,21 @@ function TimelineBlock({
               >
                 {/* Cover */}
                 <div className="w-full aspect-[2/3] rounded-lg overflow-hidden shadow-sm mb-3 relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={book.thumbnail || '/default-cover.png'}
-                    alt={book.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).src = '/default-cover.png'; }}
-                  />
+                  {book.thumbnail ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={book.thumbnail}
+                      alt={book.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const ph = (e.target as HTMLImageElement).nextElementSibling as HTMLElement; if (ph) ph.style.display = 'flex'; }}
+                    />
+                  ) : null}
+                  <div className="book-cover-placeholder" style={{ display: book.thumbnail ? 'none' : 'flex', position: 'absolute', inset: 0 }}>
+                    <div className="book-cover-placeholder-inner">
+                      <span className="book-cover-placeholder-title">{book.title}</span>
+                      <span className="book-cover-placeholder-author">{book.author}</span>
+                    </div>
+                  </div>
                   {isBookmarked && (
                     <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-[10px]"
                       style={{ background: 'rgba(255,255,255,0.9)', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
@@ -524,14 +532,22 @@ function BookDetailModal({
         <div className="p-6 pb-0">
           <div className="flex gap-5">
             {/* Cover image */}
-            <div className="w-24 h-36 rounded-lg overflow-hidden shadow-md shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={book.thumbnail || '/default-cover.png'}
-                alt={book.title}
-                className="w-full h-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).src = '/default-cover.png'; }}
-              />
+            <div className="w-24 h-36 rounded-lg overflow-hidden shadow-md shrink-0 relative">
+              {book.thumbnail ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={book.thumbnail}
+                  alt={book.title}
+                  className="w-full h-full object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const ph = (e.target as HTMLImageElement).nextElementSibling as HTMLElement; if (ph) ph.style.display = 'flex'; }}
+                />
+              ) : null}
+              <div className="book-cover-placeholder" style={{ display: book.thumbnail ? 'none' : 'flex', position: 'absolute', inset: 0 }}>
+                <div className="book-cover-placeholder-inner">
+                  <span className="book-cover-placeholder-title">{book.title}</span>
+                  <span className="book-cover-placeholder-author">{book.author}</span>
+                </div>
+              </div>
             </div>
             <div className="flex-1 min-w-0">
               {/* Label eyecatch */}

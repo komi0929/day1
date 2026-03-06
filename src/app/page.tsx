@@ -660,19 +660,31 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
   isBookmarked: boolean;
   onBookmark: () => void;
 }) {
+  const [imgError, setImgError] = useState(false);
+  const showPlaceholder = !book.thumbnail || imgError;
+
   return (
     <article className="book-card">
       <div className="book-cover-wrapper">
         <div className="book-cover-shadow" />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img 
-          src={book.thumbnail || "/default-cover.png"} 
-          alt={`${book.title} 表紙`} 
-          className="book-cover-img"
-          onError={(e) => { (e.target as HTMLImageElement).src = '/default-cover.png'; (e.target as HTMLImageElement).onerror = null; }}
-          loading="lazy" 
-          referrerPolicy="no-referrer" 
-        />
+        {showPlaceholder ? (
+          <div className="book-cover-placeholder">
+            <div className="book-cover-placeholder-inner">
+              <span className="book-cover-placeholder-title">{book.title}</span>
+              <span className="book-cover-placeholder-author">{book.author}</span>
+            </div>
+          </div>
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img 
+            src={book.thumbnail} 
+            alt={`${book.title} 表紙`} 
+            className="book-cover-img"
+            onError={() => setImgError(true)}
+            loading="lazy" 
+            referrerPolicy="no-referrer" 
+          />
+        )}
       </div>
 
       <p className="book-eyecatch">{book.label}</p>
