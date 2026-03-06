@@ -9,12 +9,10 @@ import { track, startTimer } from '@/lib/analytics';
 interface BookResult {
   title: string;
   author: string;
-  isbn?: string;
   label: string;
   summary: string;
   letter: string;
   thumbnail: string;
-  thumbnailFallback?: string;
   amazonUrl: string;
 }
 
@@ -661,28 +659,14 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
   isBookmarked: boolean;
   onBookmark: () => void;
 }) {
-  // Multi-stage cover image: primary (NDL) → fallback (openBD) → CSS placeholder
-  const [imgStage, setImgStage] = useState<'primary' | 'fallback' | 'placeholder'>(
-    book.thumbnail ? 'primary' : (book.thumbnailFallback ? 'fallback' : 'placeholder')
-  );
-
-  const currentSrc = imgStage === 'primary' ? book.thumbnail
-    : imgStage === 'fallback' ? (book.thumbnailFallback || '')
-    : '';
-
-  const handleImgError = () => {
-    if (imgStage === 'primary' && book.thumbnailFallback) {
-      setImgStage('fallback');
-    } else {
-      setImgStage('placeholder');
-    }
-  };
+  const [imgError, setImgError] = useState(false);
+  const showPlaceholder = !book.thumbnail || imgError;
 
   return (
     <article className="book-card">
       <div className="book-cover-wrapper">
         <div className="book-cover-shadow" />
-        {imgStage === 'placeholder' ? (
+        {showPlaceholder ? (
           <div className="book-cover-placeholder">
             <div className="book-cover-placeholder-inner">
               <span className="book-cover-placeholder-title">{book.title}</span>
@@ -692,10 +676,10 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
         ) : (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img 
-            src={currentSrc} 
+            src={book.thumbnail} 
             alt={`${book.title} 表紙`} 
             className="book-cover-img"
-            onError={handleImgError}
+            onError={() => setImgError(true)}
             loading="lazy" 
             referrerPolicy="no-referrer" 
           />

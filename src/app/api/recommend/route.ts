@@ -53,97 +53,61 @@ interface BookFromAI {
 
 interface BookResult extends BookFromAI {
   thumbnail: string;
-  thumbnailFallback: string;
   amazonUrl: string;
 }
 
 /**
- * Search for a book's real ISBN-13 using Google Books API (with API key) + NDL fallback.
- * Flow: Google Books (title+author → ISBN) → NDL OpenSearch (title → ISBN)
+ * Google Books API ワンストップ: タイトル+著者で検索→サムネイルURLを直接取得。
+ * 高画質化: zoom=1 → zoom=0, http → https, edge=curl除去。
  */
-async function searchIsbnByTitle(title: string, author: string): Promise<string> {
-  // Strategy 1: Google Books API with API key (high rate limit, reliable ISBN data)
+async function searchBookCover(title: string, author: string): Promise<string> {
   const apiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
-  if (apiKey) {
-    try {
-      const query = encodeURIComponent(`intitle:${title} inauthor:${author}`);
-      const res = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=3&fields=items(volumeInfo(title,authors,industryIdentifiers,imageLinks))&key=${apiKey}`,
-        { signal: AbortSignal.timeout(5000) }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const items = data?.items;
-        if (items && items.length > 0) {
-          for (const item of items) {
-            const identifiers = item?.volumeInfo?.industryIdentifiers || [];
-            // Prefer ISBN_13
-            const isbn13 = identifiers.find((id: { type: string; identifier: string }) => id.type === 'ISBN_13');
-            if (isbn13) {
-              console.log(`[GoogleBooks] Found ISBN-13 for "${title}": ${isbn13.identifier}`);
-              return isbn13.identifier;
-            }
-            // Fallback to ISBN_10 → convert to ISBN_13
-            const isbn10 = identifiers.find((id: { type: string; identifier: string }) => id.type === 'ISBN_10');
-            if (isbn10) {
-              const converted = convertIsbn10to13(isbn10.identifier);
-              console.log(`[GoogleBooks] Converted ISBN-10→13 for "${title}": ${converted}`);
-              return converted;
-            }
-          }
-        }
-      } else {
-        console.warn(`[GoogleBooks] HTTP ${res.status} for "${title}"`);
-      }
-    } catch (e) {
-      console.warn(`[GoogleBooks] Failed for "${title}":`, e);
-    }
+  if (!apiKey) {
+    console.warn('[Cover] GOOGLE_BOOKS_API_KEY not set');
+    return '';
   }
 
-  // Strategy 2: NDL OpenSearch (fallback for Japanese-only books)
   try {
-    const query = encodeURIComponent(title);
+    const query = encodeURIComponent(`${title} ${author}`);
     const res = await fetch(
-      `https://ndlsearch.ndl.go.jp/api/opensearch?title=${query}&cnt=3`,
+      `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=3&fields=items(volumeInfo(title,authors,imageLinks))&key=${apiKey}`,
       { signal: AbortSignal.timeout(5000) }
     );
-    if (res.ok) {
-      const xml = await res.text();
-      const rawMatches = xml.match(/97[89][-\d]{10,}/g) || [];
-      for (const m of rawMatches) {
-        const digits = m.replace(/[^0-9]/g, '');
-        if (digits.length === 13) {
-          console.log(`[NDL] Found ISBN for "${title}": ${digits}`);
-          return digits;
-        }
+
+    if (!res.ok) {
+      console.warn(`[Cover] Google Books HTTP ${res.status} for "${title}"`);
+      return '';
+    }
+
+    const data = await res.json();
+    const items = data?.items;
+    if (!items || items.length === 0) {
+      console.log(`[Cover] No results for "${title}"`);
+      return '';
+    }
+
+    // Find the first item with a thumbnail
+    for (const item of items) {
+      const imageLinks = item?.volumeInfo?.imageLinks;
+      // Prefer larger images: thumbnail > smallThumbnail
+      const rawUrl = imageLinks?.thumbnail || imageLinks?.smallThumbnail;
+      if (rawUrl) {
+        // Upgrade to high-res: zoom=0, https, remove edge=curl
+        const url = rawUrl
+          .replace('http://', 'https://')
+          .replace(/zoom=\d/, 'zoom=0')
+          .replace('&edge=curl', '');
+        console.log(`[Cover] Found for "${title}": ${url}`);
+        return url;
       }
     }
+
+    console.log(`[Cover] No thumbnail in results for "${title}"`);
+    return '';
   } catch (e) {
-    console.warn(`[NDL] Failed for "${title}":`, e);
+    console.warn(`[Cover] Google Books failed for "${title}":`, e);
+    return '';
   }
-
-  console.log(`[Cover] No ISBN found for: "${title}"`);
-  return '';
-}
-
-function convertIsbn10to13(isbn10: string): string {
-  const prefix = '978' + isbn10.substring(0, 9);
-  let sum = 0;
-  for (let i = 0; i < 12; i++) {
-    sum += parseInt(prefix[i]) * (i % 2 === 0 ? 1 : 3);
-  }
-  const check = (10 - (sum % 10)) % 10;
-  return prefix + check;
-}
-
-function buildThumbnailUrls(isbn: string): { primary: string; fallback: string } {
-  if (!isbn || isbn.length !== 13) {
-    return { primary: '', fallback: '' };
-  }
-  return {
-    primary: `https://cover.openbd.jp/${isbn}.jpg`,
-    fallback: `https://ndlsearch.ndl.go.jp/thumbnail/${isbn}.jpg`,
-  };
 }
 
 export async function POST(req: Request) {
@@ -269,19 +233,16 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
     const books: BookFromAI[] = aiResult.books || [];
     const fragments: string[] = aiResult.fragments || [];
 
-    // Phase 2: Search real ISBNs via NDL, then build cover URLs
+    // Phase 2: Google Books APIでサムネイルURLを直接取得
     const enrichedBooks: BookResult[] = await Promise.all(
       books.map(async (book) => {
-        const isbn = await searchIsbnByTitle(book.title, book.author);
-        const { primary, fallback } = buildThumbnailUrls(isbn);
+        const thumbnail = await searchBookCover(book.title, book.author);
 
-        console.log(`[Cover] ${book.title}: isbn="${isbn}" primary="${primary || '(none)'}"`);
+        console.log(`[Result] ${book.title}: thumbnail="${thumbnail || '(placeholder)'}"`);
 
         return {
           ...book,
-          isbn,
-          thumbnail: primary,
-          thumbnailFallback: fallback,
+          thumbnail,
           amazonUrl: generateAmazonUrl(book.title, book.author),
         };
       })
