@@ -1,5 +1,23 @@
 # Changelog
 
+## [2026-03-06] — CPO数値管理システム（Morning Assembly）
+
+### ✨ Feature
+- **Admin Dashboard** (`/admin`): 毎朝の意思決定ダッシュボード
+  - Tier 1 KPI: フロー完了率・エンゲージ率・追加検索率（昨日 vs 一昨日比較）
+  - ファネルチャート: TOP → URL送信 → 結果 → しおり の通過率・離脱率を可視化
+  - リアルタイム今日カウンター
+  - 品質指標: 表紙ヒット率, API p50, エラー数
+  - Feature Flags: 管理画面からワンタップで機能ON/OFF
+- **Analytics基盤** (`src/lib/analytics.ts`): 14種類のフロントイベント計測（fire-and-forget, sendBeacon）
+- **Feature Flags**: 5フラグ（Google Books fallback, 追加検索, 登録モーダル, ホーム警告, バッチ数制御）
+
+### 🏗 Infrastructure
+- `supabase_analytics.sql`: analytics_events + feature_flags + daily_kpi_cache テーブル
+- `/api/analytics`: イベント受信API（常に200返却、UI非ブロッキング）
+- `/api/admin/dashboard`: 日次KPI集計API（ADMIN_SECRET認証）
+- `/api/admin/flags`: Feature Flags CRUD API
+
 ## [2026-03-06] — 表紙サーバー検証 & カード簡素化
 
 ### 🐛 Bug Fix

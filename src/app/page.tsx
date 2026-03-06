@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
+import { track, startTimer } from '@/lib/analytics';
 
 /* ─── Types ─── */
 interface BookResult {
@@ -72,12 +73,16 @@ export default function Home() {
     }
   }, [session?.access_token]);
 
+  /* ─── page_view tracking ─── */
+  useEffect(() => { track('page_view'); }, []);
+
   /* ─── URL submit handler ─── */
   const handleSubmit = useCallback(async () => {
     if (loading) return;
     setError(null);
     setLoading(true);
     setShowFallback(false);
+    track('url_submit', { url_domain: noteUrl.trim().replace(/https?:\/\//, '').split('/')[0] });
 
     try {
       const res = await fetch('/api/scrape', {
@@ -112,6 +117,7 @@ export default function Home() {
       setError('もう少しだけ文章を教えてください（50文字以上お願いします）');
       return;
     }
+    track('url_fallback', { body_length: noteBody.trim().length });
     startRecommendation(noteBody, noteTitle);
   }, [noteBody, noteTitle]);
 
@@ -125,8 +131,12 @@ export default function Home() {
     setCurrentBatch(0);
     setCurrentCard(0);
 
+    track('recommend_start', { phase: 1, excludeCount: 0 });
+    const timer = startTimer();
     const result = await fetchBooks(body, title, [], true);
     if (result && result.books.length > 0) {
+      const thumbnailHits = result.books.filter((b: BookResult) => b.thumbnail).length;
+      track('recommend_complete', { phase: 1, bookCount: result.books.length, durationMs: timer(), thumbnailHits });
       setBookBatches([result.books]);
       setFragments(result.fragments || []);
       setCurrentBatch(0);
@@ -134,6 +144,7 @@ export default function Home() {
       setExpandedLetter(null);
       setPhase('results');
     } else {
+      track('recommend_error', { phase: 1, errorType: 'empty_result' });
       setError('ごめんなさい、本を探せませんでした。もう一度お試しください。');
       setPhase('input');
     }
@@ -144,12 +155,17 @@ export default function Home() {
   const loadNextBatch = useCallback(async () => {
     if (searchingMore || bookBatches.length >= maxBatches) return;
     setSearchingMore(true);
+    track('load_more', { currentBatchCount: bookBatches.length });
 
     const { body, title } = noteDataRef.current;
     const allExisting = bookBatches.flat().map(b => b.title);
 
+    const timer = startTimer();
+    track('recommend_start', { phase: bookBatches.length + 1, excludeCount: allExisting.length });
     const result = await fetchBooks(body, title, allExisting, false);
     if (result && result.books.length > 0) {
+      const thumbnailHits = result.books.filter((b: BookResult) => b.thumbnail).length;
+      track('recommend_complete', { phase: bookBatches.length + 1, bookCount: result.books.length, durationMs: timer(), thumbnailHits });
       setBookBatches(prev => {
         const newBatches = [...prev, result.books];
         // Auto-navigate to the new batch
@@ -195,6 +211,7 @@ export default function Home() {
 
   /* ─── Bookmark handler ─── */
   const handleBookmark = useCallback(async (book: BookResult) => {
+    track('bookmark_tap', { bookTitle: book.title, isLoggedIn: !!session?.access_token });
     if (!session?.access_token) {
       try {
         const saved = JSON.parse(localStorage.getItem('compass_bookmarks') || '[]');
@@ -205,6 +222,7 @@ export default function Home() {
       } catch { /* ignore */ }
       setBookmarkedTitles(prev => new Set(prev).add(book.title));
       setShowSignupModal(true);
+      track('signup_modal_show');
       return;
     }
     setBookmarkedTitles(prev => new Set(prev).add(book.title));
@@ -243,6 +261,7 @@ export default function Home() {
   const handleGoHome = () => {
     if (phase === 'results' && !user) {
       setShowHomeWarning(true);
+      track('home_warning_show');
     } else {
       doReset();
     }
@@ -579,9 +598,11 @@ function CardCarousel({
   const handleTouchEnd = () => {
     if (touchStartX === null) return;
     if (touchDelta < -60 && currentCard < books.length - 1) {
+      track('card_swipe', { fromIndex: currentCard, toIndex: currentCard + 1 });
       setCurrentCard(currentCard + 1);
       setExpandedLetter(null);
     } else if (touchDelta > 60 && currentCard > 0) {
+      track('card_swipe', { fromIndex: currentCard, toIndex: currentCard - 1 });
       setCurrentCard(currentCard - 1);
       setExpandedLetter(null);
     }
@@ -667,7 +688,7 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
       </div>
 
       {/* Letter toggle */}
-      <button onClick={onToggleLetter} className="book-expand-btn mt-3">
+      <button onClick={() => { track('letter_open', { bookTitle: book.title }); onToggleLetter(); }} className="book-expand-btn mt-3">
         {isLetterExpanded ? '閉じる' : 'お手紙を読む'}
         <span className="expand-arrow" style={{ transform: isLetterExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
       </button>
@@ -681,7 +702,8 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
         </div>
       )}
 
-      <a href={book.amazonUrl} target="_blank" rel="noopener noreferrer" className="book-amazon-link">
+      <a href={book.amazonUrl} target="_blank" rel="noopener noreferrer" className="book-amazon-link"
+        onClick={() => track('amazon_click', { bookTitle: book.title })}>
         Amazonで見る →
       </a>
     </article>
