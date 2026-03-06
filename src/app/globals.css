@@ -316,21 +316,31 @@ input, textarea, button {
 }
 
 /* ═══════════════════════════════════════════════
-   結果画面 — 書籍カードグリッド
+   結果画面 — カルーセル（横スワイプ）
    ═══════════════════════════════════════════════ */
-.result-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 24px;
-  max-width: 480px;
+.carousel-container {
+  overflow: hidden;
+  width: 100%;
+  max-width: 520px;
   margin: 0 auto;
+  touch-action: pan-y;
+}
+
+.carousel-track {
+  display: flex;
+  will-change: transform;
+}
+
+.carousel-slide {
+  flex: 0 0 100%;
+  min-width: 100%;
+  padding: 0 16px;
+  box-sizing: border-box;
 }
 
 @media (min-width: 768px) {
-  .result-grid {
-    grid-template-columns: repeat(3, 1fr);
-    max-width: 1100px;
-    gap: 28px;
+  .carousel-container {
+    max-width: 520px;
   }
 }
 
