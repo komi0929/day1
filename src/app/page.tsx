@@ -660,45 +660,15 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
   isBookmarked: boolean;
   onBookmark: () => void;
 }) {
-  const [imgState, setImgState] = useState<'initial' | 'fallback' | 'error'>('initial');
-  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
-  const hasThumbnail = book.thumbnail && book.thumbnail !== '';
-
-  const handleError = async () => {
-    if (imgState === 'initial') {
-      setImgState('fallback');
-      try {
-        const query = book.isbn ? `isbn:${book.isbn}` : `intitle:${book.title}+inauthor:${book.author}`;
-        const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}`);
-        const data = await res.json();
-        if (data.items && data.items.length > 0 && data.items[0].volumeInfo.imageLinks?.thumbnail) {
-          const url = data.items[0].volumeInfo.imageLinks.thumbnail.replace('http:', 'https:');
-          setFallbackUrl(url);
-        } else {
-          setImgState('error');
-        }
-      } catch (e) {
-        setImgState('error');
-      }
-    } else if (imgState === 'fallback') {
-      setImgState('error');
-    }
-  };
-
-  const currentSrc = imgState === 'error' || (!hasThumbnail && imgState === 'initial')
-    ? "/default-cover.png"
-    : (fallbackUrl || book.thumbnail || "/default-cover.png");
-
   return (
     <article className="book-card">
       <div className="book-cover-wrapper">
         <div className="book-cover-shadow" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img 
-          src={currentSrc} 
+          src={book.thumbnail || "/default-cover.png"} 
           alt={`${book.title} 表紙`} 
           className="book-cover-img"
-          onError={handleError} 
           loading="lazy" 
           referrerPolicy="no-referrer" 
         />

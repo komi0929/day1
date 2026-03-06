@@ -59,18 +59,35 @@ interface BookResult extends BookFromAI {
 }
 
 /**
- * Build thumbnail URL directly — NO server-side HEAD verification.
- * Rationale: HEAD checks to Hanmoto (DNS fail, 3s timeout) + NDL (3s)
- * per book were causing Vercel function timeouts (10s limit).
- *
- * Strategy: Construct NDL URL directly if ISBN is valid.
- * Client-side img onError handles 404 → falls back to /default-cover.png.
+ * Resolve thumbnail URL concurrently on the server-side with strict 2s timeouts.
+ * Priority 1: Hanmoto (openBD)
+ * Priority 2: NDL (National Diet Library)
+ * Priority 3: /default-cover.png
  */
-function buildThumbnailUrl(isbn: string): string {
+async function resolveBookCover(isbn: string): Promise<string> {
   const cleanIsbn = (isbn || '').replace(/[^0-9]/g, '');
-  if (cleanIsbn.length !== 13) return '';
-  // NDL thumbnail URL — proven working for ~80% of Japanese books with correct ISBNs
-  return `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`;
+  if (cleanIsbn.length !== 13) return '/default-cover.png';
+
+  const urls = [
+    `https://cover.hanmoto.com/${cleanIsbn}.jpg`,
+    `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`
+  ];
+
+  for (const url of urls) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(url, { method: 'HEAD', signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        return url;
+      }
+    } catch {
+      // Ignore timeout or network errors
+    }
+  }
+
+  return '/default-cover.png';
 }
 
 export async function POST(req: Request) {
@@ -196,11 +213,11 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
     const books: BookFromAI[] = aiResult.books || [];
     const fragments: string[] = aiResult.fragments || [];
 
-    // Phase 2: Build thumbnail URLs synchronously (no HEAD requests = no timeout risk)
-    const enrichedBooks: BookResult[] = books.map((book) => {
+    // Phase 2: Concurrently build confirmed thumbnail URLs using server-side HEAD verification
+    const enrichedBooks: BookResult[] = await Promise.all(books.map(async (book) => {
       const cleanIsbn = (book.isbn || '').replace(/[^0-9]/g, '');
       const validIsbn = cleanIsbn.length === 13 ? cleanIsbn : '';
-      const thumbnail = buildThumbnailUrl(validIsbn);
+      const thumbnail = await resolveBookCover(validIsbn);
 
       // Log ISBN for debugging
       console.log(`[ISBN] ${book.title}: raw="${book.isbn}" clean="${validIsbn}" thumb="${thumbnail}"`);
@@ -208,10 +225,10 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
       return {
         ...book,
         isbn: validIsbn,
-        thumbnail, // NDL URL or empty → client img onError uses /default-cover.png
+        thumbnail,
         amazonUrl: generateAmazonUrl(book.title, book.author),
       };
-    });
+    }));
 
     return NextResponse.json({
       books: enrichedBooks,
