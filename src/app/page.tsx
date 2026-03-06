@@ -152,7 +152,7 @@ export default function Home() {
   };
 
   /* ─── Load next 3 books ─── */
-  const loadNextBatch = useCallback(async () => {
+  const loadNextBatch = useCallback(async (isBackgroundPreload: boolean = false) => {
     if (searchingMore || bookBatches.length >= maxBatches) return;
     setSearchingMore(true);
     track('load_more', { currentBatchCount: bookBatches.length });
@@ -168,10 +168,12 @@ export default function Home() {
       track('recommend_complete', { phase: bookBatches.length + 1, bookCount: result.books.length, durationMs: timer(), thumbnailHits });
       setBookBatches(prev => {
         const newBatches = [...prev, result.books];
-        // Auto-navigate to the new batch
-        setCurrentBatch(newBatches.length - 1);
-        setCurrentCard(0);
-        setExpandedLetter(null);
+        if (!isBackgroundPreload) {
+          // Auto-navigate only if user actively clicked
+          setCurrentBatch(newBatches.length - 1);
+          setCurrentCard(0);
+          setExpandedLetter(null);
+        }
         return newBatches;
       });
     }
@@ -208,6 +210,14 @@ export default function Home() {
     saveAndProfile();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
+
+  /* ─── Background Pre-fetch Next Batch ─── */
+  useEffect(() => {
+    // If we have just 1 batch and are in results, and not searching yet, start prefetching the 2nd batch
+    if (phase === 'results' && bookBatches.length === 1 && !searchingMore) {
+      loadNextBatch(true); // Pre-fetch in background without auto-navigating
+    }
+  }, [phase, bookBatches.length, searchingMore, loadNextBatch]);
 
   /* ─── Bookmark handler ─── */
   const handleBookmark = useCallback(async (book: BookResult) => {
@@ -470,7 +480,7 @@ export default function Home() {
 
             {/* Load more button — only on last batch */}
             {!hasNextBatch && canLoadMore && (
-              <button id="load-more-button" onClick={loadNextBatch} disabled={searchingMore} className="btn-ghost w-full">
+              <button id="load-more-button" onClick={() => loadNextBatch(false)} disabled={searchingMore} className="btn-ghost w-full">
                 {searchingMore ? (
                   <span className="analyzing-pulse">📚 {bookBatches.length * 3 + 1}冊目以降を探しています…</span>
                 ) : (
@@ -657,18 +667,15 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
     <article className="book-card">
       <div className="book-cover-wrapper">
         <div className="book-cover-shadow" />
-        {hasThumbnail && !imgError ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={book.thumbnail} alt={`${book.title} 表紙`} className="book-cover-img"
-            onError={() => setImgError(true)} loading="lazy" referrerPolicy="no-referrer" />
-        ) : (
-          <div className="book-cover-placeholder">
-            <div className="book-cover-placeholder-inner">
-              <span className="book-cover-placeholder-title">{book.title}</span>
-              <span className="book-cover-placeholder-author">{book.author}</span>
-            </div>
-          </div>
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img 
+          src={(hasThumbnail && !imgError) ? book.thumbnail : "/default-cover.png"} 
+          alt={`${book.title} 表紙`} 
+          className="book-cover-img"
+          onError={() => setImgError(true)} 
+          loading="lazy" 
+          referrerPolicy="no-referrer" 
+        />
       </div>
 
       <p className="book-eyecatch">{book.label}</p>
