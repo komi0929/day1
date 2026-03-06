@@ -1,13 +1,13 @@
 # Changelog
 
-## [2026-03-07] — 表紙画像: ゼロレイテンシ構築 + フロント多段フォールバック
+## [2026-03-07] — 表紙画像修正: openBD(版元ドットコム)をプライマリに + CSP修正
 
-### ♻️ Critical Fix
-- **サーバーサイドfetch全廃止**: openBD/Google Books APIのサーバーサイド呼び出しは、coverフィールド空文字・429クォータ制限で実用不可と判明。全て削除
-- **ゼロレイテンシURL構築**: ISBNからNDL・openBDのカバーURLを0msで構築して返却（ネットワークコスト0）
-- **フロントエンド3段フォールバック**: BookCardで `NDL(primary) → openBD(fallback) → CSSプレースホルダー` の順に自動試行、`imgStage`ステートで管理
-- **BookResultに`thumbnailFallback`追加**: APIレスポンスで2つのURL候補を返却
-- **NDL APIは2026/3/31まで稼働中**であることを実テストで確認。終了後はopenBD→CSSプレースホルダーに自動劣化
+### 🐛 Critical Fix
+- **CSPヘッダーに`cover.openbd.jp`未登録が根本原因**: ブラウザが画像読み込みをブロックしていた
+- **openBDをプライマリに変更**: `cover.openbd.jp/{isbn}.jpg`を第1優先URL、NDLを第2に変更
+- **ゼロレイテンシURL構築**: サーバーサイドfetch全廃止、ISBNからURL直構築（0ms）
+- **フロントエンド3段フォールバック**: openBD → NDL → CSSプレースホルダー
+- **`thumbnailFallback`新フィールド追加**: APIレスポンスで2つのURL候補を返却
 
 ## [2026-03-06] — 表紙画像の解決を完全サーバーサイド事前検証へ移行
 

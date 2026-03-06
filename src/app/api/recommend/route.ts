@@ -64,8 +64,8 @@ interface BookResult extends BookFromAI {
  * Returns { primary, fallback } URLs for client-side multi-stage loading.
  * 
  * Priority chain (client-side):
- *   1. NDL (still active until 2026/3/31, best quality for JP books)
- *   2. openBD cover URL (direct ISBN-based, no API call needed)
+ *   1. openBD / 版元ドットコム (highest hit rate for JP books)
+ *   2. NDL (active until 2026/3/31)
  *   3. CSS placeholder (frontend handles when both fail)
  */
 function buildThumbnailUrls(isbn: string): { primary: string; fallback: string } {
@@ -74,8 +74,8 @@ function buildThumbnailUrls(isbn: string): { primary: string; fallback: string }
     return { primary: '', fallback: '' };
   }
   return {
-    primary: `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`,
-    fallback: `https://cover.openbd.jp/${cleanIsbn}.jpg`,
+    primary: `https://cover.openbd.jp/${cleanIsbn}.jpg`,
+    fallback: `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`,
   };
 }
 
