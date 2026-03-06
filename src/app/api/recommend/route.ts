@@ -59,32 +59,35 @@ interface BookResult extends BookFromAI {
 }
 
 /**
- * Resolve thumbnail URL concurrently on the server-side with strict 2s timeouts.
- * Priority 1: Hanmoto (openBD)
- * Priority 2: NDL (National Diet Library)
- * Priority 3: /default-cover.png
+ * Resolve thumbnail URL on the server-side.
+ * Checks Hanmoto (openBD) and NDL SIMULTANEOUSLY (not sequentially)
+ * with a strict 1.5s timeout. Returns the first valid URL found.
  */
 async function resolveBookCover(isbn: string): Promise<string> {
   const cleanIsbn = (isbn || '').replace(/[^0-9]/g, '');
   if (cleanIsbn.length !== 13) return '/default-cover.png';
 
-  const urls = [
-    `https://cover.hanmoto.com/${cleanIsbn}.jpg`,
-    `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`
-  ];
+  const hanmotoUrl = `https://cover.hanmoto.com/${cleanIsbn}.jpg`;
+  const ndlUrl = `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`;
 
-  for (const url of urls) {
+  // Check both sources simultaneously
+  const checkUrl = async (url: string): Promise<string | null> => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), 1500);
       const res = await fetch(url, { method: 'HEAD', signal: controller.signal });
       clearTimeout(timeoutId);
-      if (res.ok) {
-        return url;
-      }
+      return res.ok ? url : null;
     } catch {
-      // Ignore timeout or network errors
+      return null;
     }
+  };
+
+  const results = await Promise.allSettled([checkUrl(hanmotoUrl), checkUrl(ndlUrl)]);
+
+  // Prefer Hanmoto (priority 1), then NDL (priority 2)
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.value) return r.value;
   }
 
   return '/default-cover.png';
@@ -136,7 +139,7 @@ export async function POST(req: Request) {
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
-        temperature: 0.9,
+        temperature: 0.7,
         maxOutputTokens: 16384,
       },
       tools: toolConfig,
@@ -172,7 +175,7 @@ export async function POST(req: Request) {
 
     const wantFragments = includeFragments !== false;
 
-    const userPrompt = `以下のnote記事を読み込み、「今読んでほしい一冊」を${BOOK_COUNT}冊推薦してください。
+    const userPrompt = `以下のnote記事を深く読み解き、この筆者が「今まさに読むべき一冊」を${BOOK_COUNT}冊推薦してください。
 
 ━━━━━━━━━━━━━━━━
 ■ note記事タイトル: ${noteTitle || '（タイトルなし）'}
@@ -181,13 +184,13 @@ ${noteBody.trim().slice(0, 8000)}
 ━━━━━━━━━━━━━━━━
 
 【重要な指示】
-- ${BOOK_COUNT}冊すべて実在する書籍であること
+- ${BOOK_COUNT}冊すべて実在する書籍であること（架空の本は絶対に推薦しない）
 - 主に日本の著者の和書から選書すること（noteの文脈に極めて深く合致する場合のみ、海外の翻訳書も含めてよい）
-- 定番すぎるベストセラーは避ける
-- note記事の具体的な言葉を引用した手紙形式の推薦文を書く
+- 定番すぎるベストセラーは避け、noteの内容に深く紐づいた書籍を選ぶ
+- noteの具体的な言葉や感情を反映した、体温のある手紙形式の推薦文を書く
 ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ抽出する' : '- fragmentsは空配列[]にする'}
-- isbn: 各書籍についてGoogle検索で必ず実在確認を行い、正確なISBN-13コード（13桁の数字、ハイフンなし）を取得して記載すること。架空のISBNを生成することは厳禁
-- label: noteの文章で使われている言葉を反映させた、この本を読みたくなるアイキャッチの一文（要約ではなく、ユーザーの状況とこの本の交差点にある言葉）${exclusionNote}
+- isbn: Google検索で正確なISBN-13（13桁数字、ハイフンなし）を取得。確認できなければ空文字
+- label: noteの言葉を活かした、この本を読みたくなる一文（要約ではなく、筆者の状況とこの本の交差点にある言葉）${exclusionNote}
 
 出力は上記で指定されたJSON形式のみを、コードブロック(\`\`\`json ... \`\`\`)で囲んで出力してください。JSON以外のテキストは一切出力しないでください。`;
 
