@@ -10,8 +10,6 @@ interface BookResult {
   author: string;
   isbn?: string;
   label: string;
-  headline: string;
-  oneliner: string;
   summary: string;
   letter: string;
   thumbnail: string;
@@ -652,11 +650,9 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
         )}
       </div>
 
-      <div className="book-label">{book.label}</div>
+      <p className="book-eyecatch">{book.label}</p>
       <h3 className="book-title">{book.title}</h3>
       <p className="book-author">{book.author}</p>
-      <p className="book-headline">{book.headline}</p>
-      <p className="book-oneliner">「{book.oneliner}」</p>
 
       {/* Bookmark */}
       <button onClick={onBookmark} className="book-expand-btn mb-2"

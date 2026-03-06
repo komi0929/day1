@@ -459,21 +459,24 @@ input, textarea, button {
   font-weight: 500;
 }
 
-/* ─── ラベル ─── */
-.book-label {
-  font-size: 10px;
+/* ─── アイキャッチ（最も目立つ要素） ─── */
+.book-eyecatch {
+  font-size: 15px;
   font-weight: 800;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--g-coral);
-  margin-bottom: 8px;
+  line-height: 1.6;
+  background: linear-gradient(135deg, var(--g-coral), #c74a3c);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 12px;
   text-align: center;
+  letter-spacing: 0.3px;
 }
 
-/* ─── タイトル・著者 ─── */
+/* ─── タイトル・著者（アイキャッチより控えめに） ─── */
 .book-title {
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 700;
   line-height: 1.4;
   color: var(--color-text);
   margin-bottom: 4px;
@@ -483,29 +486,8 @@ input, textarea, button {
 .book-author {
   font-size: 11px;
   color: var(--color-text-dim);
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   text-align: center;
-}
-
-/* ─── ヘッドライン ─── */
-.book-headline {
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--color-text-muted);
-  margin-bottom: 8px;
-  text-align: center;
-  font-weight: 500;
-}
-
-/* ─── ヒトコト推薦 ─── */
-.book-oneliner {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--g-coral);
-  font-style: italic;
-  text-align: center;
-  margin-bottom: 16px;
-  padding: 0 8px;
 }
 
 /* ─── 展開ボタン ─── */
