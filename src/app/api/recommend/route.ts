@@ -57,57 +57,82 @@ interface BookResult extends BookFromAI {
 }
 
 /**
- * Google Books API ワンストップ: タイトル+著者で検索→サムネイルURLを直接取得。
- * 高画質化: zoom=1 → zoom=0, http → https, edge=curl除去。
+ * 表紙画像URL取得 — 3段階フォールバック:
+ *   1. Google Books API サムネイル (直接URL)
+ *   2. openBD カバー (Google BooksのISBNを使用: cover.openbd.jp/{isbn}.jpg)
+ *   3. 空文字 → フロントエンドでCSSプレースホルダー表示
  */
 async function searchBookCover(title: string, author: string): Promise<string> {
   const apiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
-  if (!apiKey) {
-    console.warn('[Cover] GOOGLE_BOOKS_API_KEY not set');
-    return '';
-  }
+  let isbn13 = '';
 
-  try {
-    const query = encodeURIComponent(`${title} ${author}`);
-    const res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=3&fields=items(volumeInfo(title,authors,imageLinks))&key=${apiKey}`,
-      { signal: AbortSignal.timeout(5000) }
-    );
+  // ── Stage 1: Google Books API ──
+  if (apiKey) {
+    try {
+      const query = encodeURIComponent(`${title} ${author}`);
+      const res = await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,authors,imageLinks,industryIdentifiers))&key=${apiKey}`,
+        { signal: AbortSignal.timeout(5000) }
+      );
 
-    if (!res.ok) {
-      console.warn(`[Cover] Google Books HTTP ${res.status} for "${title}"`);
-      return '';
-    }
+      if (res.ok) {
+        const data = await res.json();
+        const items = data?.items;
+        if (items && items.length > 0) {
+          for (const item of items) {
+            const vi = item?.volumeInfo;
 
-    const data = await res.json();
-    const items = data?.items;
-    if (!items || items.length === 0) {
-      console.log(`[Cover] No results for "${title}"`);
-      return '';
-    }
+            // サムネイルがあればそのまま使う（高画質化）
+            const imageLinks = vi?.imageLinks;
+            const rawUrl = imageLinks?.thumbnail || imageLinks?.smallThumbnail;
+            if (rawUrl) {
+              const url = rawUrl
+                .replace('http://', 'https://')
+                .replace(/zoom=\d/, 'zoom=0')
+                .replace('&edge=curl', '');
+              console.log(`[Cover] GoogleBooks thumbnail for "${title}": ${url}`);
+              return url;
+            }
 
-    // Find the first item with a thumbnail
-    for (const item of items) {
-      const imageLinks = item?.volumeInfo?.imageLinks;
-      // Prefer larger images: thumbnail > smallThumbnail
-      const rawUrl = imageLinks?.thumbnail || imageLinks?.smallThumbnail;
-      if (rawUrl) {
-        // Upgrade to high-res: zoom=0, https, remove edge=curl
-        const url = rawUrl
-          .replace('http://', 'https://')
-          .replace(/zoom=\d/, 'zoom=0')
-          .replace('&edge=curl', '');
-        console.log(`[Cover] Found for "${title}": ${url}`);
-        return url;
+            // サムネイルはないがISBNはある → openBDフォールバック用に保存
+            if (!isbn13) {
+              const identifiers = vi?.industryIdentifiers || [];
+              const id13 = identifiers.find((id: { type: string; identifier: string }) => id.type === 'ISBN_13');
+              if (id13) isbn13 = id13.identifier;
+              if (!isbn13) {
+                const id10 = identifiers.find((id: { type: string; identifier: string }) => id.type === 'ISBN_10');
+                if (id10) isbn13 = convertIsbn10to13(id10.identifier);
+              }
+            }
+          }
+        }
+      } else {
+        console.warn(`[Cover] Google Books HTTP ${res.status} for "${title}"`);
       }
+    } catch (e) {
+      console.warn(`[Cover] Google Books failed for "${title}":`, e);
     }
-
-    console.log(`[Cover] No thumbnail in results for "${title}"`);
-    return '';
-  } catch (e) {
-    console.warn(`[Cover] Google Books failed for "${title}":`, e);
-    return '';
   }
+
+  // ── Stage 2: openBD cover (ISBNが取得できた場合) ──
+  if (isbn13) {
+    const openbdUrl = `https://cover.openbd.jp/${isbn13}.jpg`;
+    console.log(`[Cover] openBD fallback for "${title}": ${openbdUrl}`);
+    return openbdUrl;
+  }
+
+  console.log(`[Cover] No cover found for: "${title}"`);
+  return '';
+}
+
+function convertIsbn10to13(isbn10: string): string {
+  const prefix = '978' + isbn10.substring(0, 9);
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    sum += parseInt(prefix[i]) * (i % 2 === 0 ? 1 : 3);
+  }
+  const check = (10 - (sum % 10)) % 10;
+  return prefix + check;
 }
 
 export async function POST(req: Request) {
