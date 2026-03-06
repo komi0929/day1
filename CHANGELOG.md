@@ -1,13 +1,13 @@
 # Changelog
 
-## [2026-03-07] — 表紙画像修正: openBD(版元ドットコム)をプライマリに + CSP修正
+## [2026-03-07] — 表紙画像: AI生成ISBN廃止 → NDL検索で正しいISBN取得
 
-### 🐛 Critical Fix
-- **CSPヘッダーに`cover.openbd.jp`未登録が根本原因**: ブラウザが画像読み込みをブロックしていた
-- **openBDをプライマリに変更**: `cover.openbd.jp/{isbn}.jpg`を第1優先URL、NDLを第2に変更
-- **ゼロレイテンシURL構築**: サーバーサイドfetch全廃止、ISBNからURL直構築（0ms）
-- **フロントエンド3段フォールバック**: openBD → NDL → CSSプレースホルダー
-- **`thumbnailFallback`新フィールド追加**: APIレスポンスで2つのURL候補を返却
+### 🐛 Critical Fix (表紙表示率を大幅改善)
+- **AIプロンプトからISBN出力を完全除去**: AIがISBNを「生成」（ハルシネーション）していたことが表紙未表示の根本原因
+- **NDL OpenSearch APIでタイトル検索**: AIが選書した書名でNDL（国立国会図書館）を検索し、**実在する正しいISBN-13**を取得
+- **フロー変更**: AI選書(タイトル+著者) → NDL検索(ISBN取得) → openBDカバーURL構築
+- **3冊並列検索**: Promise.allで全書籍を同時にNDL検索（レイテンシ最小化）
+- **CSPに`cover.openbd.jp`追加**: 前回のCSP未登録問題も修正済み
 
 ## [2026-03-06] — 表紙画像の解決を完全サーバーサイド事前検証へ移行
 
