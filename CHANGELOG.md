@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026-03-06] — 本棚UX全面改修「思い出のタイムライン」
+
+### 🎨 UX Overhaul
+- **タブ廃止 → タイムラインUI**: DB構造に依存したHistoryTab/BookmarksTabを廃止し、時系列で選書記録が並ぶ「軌跡モード」に統合
+- **BookDetailModal**: 本をタップで手紙付き詳細モーダル表示。当時のnote一節 → 手紙 → 「Amazonでこの本を迎え入れる」CTAのエモーショナルフロー
+- **しおりフィルター**: 「🔖 しおりをはさんだ本だけ」トグルで本棚モード切替
+- **本ごとのアクション**: ホバー/タップで🔖しおり・✕非表示ボタン表示
+
+### 🐛 Critical Fix
+- **localStorageデータ移行**: 未ログイン時の`compass_pending`/`compass_bookmarks`をログイン直後にDB移行 → localStorage削除
+
 ## [2026-03-06] — 表紙画像: Search Grounding + 3段階フォールバック
 
 ### 🔧 Overhaul

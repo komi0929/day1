@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
 
+/* ─── Types ─── */
 interface Selection {
   id: string;
   note_url: string | null;
@@ -18,8 +19,6 @@ interface BookData {
   title: string;
   author: string;
   label?: string;
-  headline?: string;
-  oneliner?: string;
   summary?: string;
   letter?: string;
   thumbnail?: string;
@@ -31,25 +30,28 @@ interface Bookmark {
   book_title: string;
   book_author: string;
   book_label: string;
-  book_headline: string;
-  book_oneliner: string;
   book_summary: string;
   book_letter: string;
   book_thumbnail: string;
   book_amazon_url: string;
   created_at: string;
+  selection_id?: string;
 }
 
-type Tab = 'history' | 'bookmarks';
-
+/* ═══════════════════════════════════════════════
+   Main Library Page
+   ═══════════════════════════════════════════════ */
 export default function LibraryPage() {
   const { user, session, loading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>('history');
   const [selections, setSelections] = useState<Selection[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedSelection, setExpandedSelection] = useState<string | null>(null);
+  const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false);
+  const [hiddenBooks, setHiddenBooks] = useState<Set<string>>(new Set());
+  const [modalBook, setModalBook] = useState<{ book: BookData; fragment?: string; date?: string } | null>(null);
+  const migratedRef = useRef(false);
 
+  // ─── Data fetching ───
   const fetchLibrary = useCallback(async () => {
     if (!session?.access_token) return;
     try {
@@ -76,28 +78,134 @@ export default function LibraryPage() {
     }
   }, [user, session, authLoading, fetchLibrary]);
 
-  const removeBookmark = async (bookmark: Bookmark) => {
+  // ─── localStorage → DB migration (Critical Fix #3) ───
+  useEffect(() => {
+    if (!session?.access_token || !user || migratedRef.current) return;
+    migratedRef.current = true;
+
+    const migrateData = async () => {
+      const token = session.access_token;
+      let didMigrate = false;
+
+      // Migrate pending selections
+      try {
+        const pendingRaw = localStorage.getItem('compass_pending');
+        if (pendingRaw) {
+          const pending = JSON.parse(pendingRaw);
+          if (Array.isArray(pending) && pending.length > 0) {
+            for (const sel of pending) {
+              try {
+                await fetch('/api/save-selection', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({
+                    noteUrl: sel.noteUrl || null,
+                    noteTitle: sel.noteTitle || '',
+                    noteBody: sel.noteBody || '',
+                    books: sel.books || [],
+                    fragments: sel.fragments || [],
+                  }),
+                });
+              } catch { /* continue */ }
+            }
+            localStorage.removeItem('compass_pending');
+            didMigrate = true;
+          }
+        }
+      } catch { /* ignore parse errors */ }
+
+      // Migrate bookmarks
+      try {
+        const bookmarksRaw = localStorage.getItem('compass_bookmarks');
+        if (bookmarksRaw) {
+          const localBookmarks = JSON.parse(bookmarksRaw);
+          if (Array.isArray(localBookmarks) && localBookmarks.length > 0) {
+            for (const book of localBookmarks) {
+              try {
+                await fetch('/api/bookmarks', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ book }),
+                });
+              } catch { /* continue */ }
+            }
+            localStorage.removeItem('compass_bookmarks');
+            didMigrate = true;
+          }
+        }
+      } catch { /* ignore parse errors */ }
+
+      // Refresh library if we migrated data
+      if (didMigrate) {
+        fetchLibrary();
+      }
+    };
+
+    migrateData();
+  }, [session?.access_token, user, fetchLibrary]);
+
+  // Load hidden books from localStorage
+  useEffect(() => {
+    try {
+      const hidden = localStorage.getItem('compass_hidden_books');
+      if (hidden) setHiddenBooks(new Set(JSON.parse(hidden)));
+    } catch { /* ignore */ }
+  }, []);
+
+  // ─── Actions ───
+  const bookmarkedTitles = new Set(bookmarks.map(b => b.book_title));
+
+  const handleBookmark = async (book: BookData) => {
     if (!session?.access_token) return;
-    setBookmarks(prev => prev.filter(b => b.id !== bookmark.id));
+    try {
+      await fetch('/api/bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ book }),
+      });
+      fetchLibrary();
+    } catch { /* ignore */ }
+  };
+
+  const handleRemoveBookmark = async (book: BookData) => {
+    if (!session?.access_token) return;
+    // Optimistic update
+    setBookmarks(prev => prev.filter(b => b.book_title !== book.title || b.book_author !== book.author));
     try {
       await fetch('/api/bookmarks', {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          bookTitle: bookmark.book_title,
-          bookAuthor: bookmark.book_author,
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ bookTitle: book.title, bookAuthor: book.author }),
       });
-    } catch (e) {
-      console.error('Remove bookmark error:', e);
-      fetchLibrary();
+    } catch {
+      fetchLibrary(); // Revert on error
     }
   };
 
-  // Not logged in
+  const handleHideBook = (book: BookData) => {
+    const key = `${book.title}::${book.author}`;
+    setHiddenBooks(prev => {
+      const next = new Set(prev);
+      next.add(key);
+      try { localStorage.setItem('compass_hidden_books', JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  const getBookmarkForBook = (book: BookData): Bookmark | undefined => {
+    return bookmarks.find(b => b.book_title === book.title && b.book_author === book.author);
+  };
+
+  // ─── Filter selections ───
+  const filteredSelections = showBookmarkedOnly
+    ? selections.filter(sel =>
+        sel.books?.some(book =>
+          bookmarkedTitles.has(book.title) && !hiddenBooks.has(`${book.title}::${book.author}`)
+        )
+      )
+    : selections;
+
+  // ─── Not logged in ───
   if (!authLoading && !user) {
     return (
       <main className="min-h-dvh gradient-warm">
@@ -113,11 +221,7 @@ export default function LibraryPage() {
               次にお会いした時、また続きのお話ができるように。
             </p>
             <AuthForm />
-            <Link
-              href="/"
-              className="block mt-6 text-sm"
-              style={{ color: 'var(--color-text-dim)' }}
-            >
+            <Link href="/" className="block mt-6 text-sm" style={{ color: 'var(--color-text-dim)' }}>
               ← まずは本を探してみる
             </Link>
           </div>
@@ -132,9 +236,7 @@ export default function LibraryPage() {
         <div className="noise-bg" />
         <div className="content-layer text-center analyzing-pulse">
           <div className="text-4xl mb-4">📚</div>
-          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            本棚を開いています…
-          </p>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>本棚を開いています…</p>
         </div>
       </main>
     );
@@ -146,7 +248,7 @@ export default function LibraryPage() {
       <div className="content-layer">
         <div className="max-w-3xl mx-auto px-5 py-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-xl font-extrabold" style={{ color: 'var(--color-text)' }}>
                 わたしの本棚
@@ -160,215 +262,393 @@ export default function LibraryPage() {
             </Link>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-2 mb-8">
+          {/* Bookmark filter toggle */}
+          <div className="mb-8">
             <button
-              onClick={() => setActiveTab('history')}
-              className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all ${
-                activeTab === 'history'
-                  ? 'text-white shadow-sm'
-                  : ''
-              }`}
-              style={activeTab === 'history'
-                ? { background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))' }
+              onClick={() => setShowBookmarkedOnly(!showBookmarkedOnly)}
+              className="px-5 py-2.5 rounded-full text-xs font-bold transition-all"
+              style={showBookmarkedOnly
+                ? { background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', color: '#fff', boxShadow: '0 2px 8px rgba(232, 101, 90, 0.25)' }
                 : { color: 'var(--color-text-dim)', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }
               }
             >
-              これまでに綴った言葉たち
+              🔖 しおりをはさんだ本だけ
             </button>
-            <button
-              onClick={() => setActiveTab('bookmarks')}
-              className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all ${
-                activeTab === 'bookmarks'
-                  ? 'text-white shadow-sm'
-                  : ''
-              }`}
-              style={activeTab === 'bookmarks'
-                ? { background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))' }
-                : { color: 'var(--color-text-dim)', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }
-              }
-            >
-              いつか読む本
-            </button>
-          </div>
-
-          {/* Tab Content */}
-          {activeTab === 'history' ? (
-            <HistoryTab
-              selections={selections}
-              expandedSelection={expandedSelection}
-              setExpandedSelection={setExpandedSelection}
-            />
-          ) : (
-            <BookmarksTab bookmarks={bookmarks} onRemove={removeBookmark} />
-          )}
-        </div>
-      </div>
-    </main>
-  );
-}
-
-/* ─── History Tab ─── */
-function HistoryTab({
-  selections,
-  expandedSelection,
-  setExpandedSelection,
-}: {
-  selections: Selection[];
-  expandedSelection: string | null;
-  setExpandedSelection: (id: string | null) => void;
-}) {
-  if (selections.length === 0) {
-    return <EmptyState />;
-  }
-
-  return (
-    <div className="space-y-6">
-      {selections.map((sel) => (
-        <div key={sel.id} className="card p-5 fade-in-up">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="text-xs font-bold" style={{ color: 'var(--g-coral)' }}>
-                {new Date(sel.created_at).toLocaleDateString('ja-JP', {
-                  year: 'numeric', month: 'long', day: 'numeric'
-                })}
-              </p>
-              {sel.note_title && (
-                <h3 className="text-sm font-bold mt-1" style={{ color: 'var(--color-text)' }}>
-                  {sel.note_title}
-                </h3>
-              )}
-            </div>
-            {sel.note_url && (
-              <a
-                href={sel.note_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs shrink-0"
-                style={{ color: 'var(--color-accent)' }}
-              >
-                元のnote →
-              </a>
+            {bookmarks.length > 0 && (
+              <span className="text-[10px] ml-3" style={{ color: 'var(--color-text-dim)' }}>
+                {bookmarks.length}冊のしおり
+              </span>
             )}
           </div>
 
-          {/* Fragments */}
-          {sel.fragments && sel.fragments.length > 0 && (
-            <div className="mb-4 pl-3" style={{ borderLeft: '2px solid var(--g-coral)', opacity: 0.7 }}>
-              <p className="text-xs italic leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-                {sel.fragments[0]}
-              </p>
-            </div>
-          )}
-
-          {/* Books grid (collapsed/expanded) */}
-          <button
-            onClick={() => setExpandedSelection(expandedSelection === sel.id ? null : sel.id)}
-            className="text-xs font-bold w-full text-left py-2"
-            style={{ color: 'var(--color-text-dim)' }}
-          >
-            📚 {sel.books?.length || 0}冊の本が見つかりました
-            <span className="ml-2">{expandedSelection === sel.id ? '▲' : '▼'}</span>
-          </button>
-
-          {expandedSelection === sel.id && sel.books && (
-            <div className="grid grid-cols-3 gap-3 mt-3">
-              {sel.books.map((book: BookData, i: number) => (
-                <div key={i} className="text-center">
-                  <div className="w-16 h-24 mx-auto mb-2 rounded overflow-hidden shadow-sm">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={book.thumbnail || '/default-cover.png'}
-                      alt={book.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => { (e.target as HTMLImageElement).src = '/default-cover.png'; }}
-                    />
-                  </div>
-                  <p className="text-[10px] font-bold leading-tight" style={{ color: 'var(--color-text)' }}>
-                    {book.title}
-                  </p>
-                  <p className="text-[9px]" style={{ color: 'var(--color-text-dim)' }}>
-                    {book.author}
-                  </p>
-                </div>
+          {/* Timeline */}
+          {filteredSelections.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="space-y-10">
+              {filteredSelections.map(sel => (
+                <TimelineBlock
+                  key={sel.id}
+                  selection={sel}
+                  bookmarkedTitles={bookmarkedTitles}
+                  hiddenBooks={hiddenBooks}
+                  showBookmarkedOnly={showBookmarkedOnly}
+                  onBookmark={handleBookmark}
+                  onRemoveBookmark={handleRemoveBookmark}
+                  onHide={handleHideBook}
+                  onOpenModal={(book) => setModalBook({
+                    book,
+                    fragment: sel.fragments?.[0],
+                    date: sel.created_at,
+                  })}
+                />
               ))}
             </div>
           )}
         </div>
-      ))}
-    </div>
+      </div>
+
+      {/* Book Detail Modal */}
+      {modalBook && (
+        <BookDetailModal
+          book={modalBook.book}
+          bookmark={getBookmarkForBook(modalBook.book)}
+          fragment={modalBook.fragment}
+          date={modalBook.date}
+          isBookmarked={bookmarkedTitles.has(modalBook.book.title)}
+          onClose={() => setModalBook(null)}
+          onBookmark={() => { handleBookmark(modalBook.book); }}
+          onRemoveBookmark={() => { handleRemoveBookmark(modalBook.book); }}
+        />
+      )}
+    </main>
   );
 }
 
-/* ─── Bookmarks Tab ─── */
-function BookmarksTab({
-  bookmarks,
-  onRemove,
+/* ═══════════════════════════════════════════════
+   Timeline Block — One Selection (one note session)
+   ═══════════════════════════════════════════════ */
+function TimelineBlock({
+  selection,
+  bookmarkedTitles,
+  hiddenBooks,
+  showBookmarkedOnly,
+  onBookmark,
+  onRemoveBookmark,
+  onHide,
+  onOpenModal,
 }: {
-  bookmarks: Bookmark[];
-  onRemove: (b: Bookmark) => void;
+  selection: Selection;
+  bookmarkedTitles: Set<string>;
+  hiddenBooks: Set<string>;
+  showBookmarkedOnly: boolean;
+  onBookmark: (book: BookData) => void;
+  onRemoveBookmark: (book: BookData) => void;
+  onHide: (book: BookData) => void;
+  onOpenModal: (book: BookData) => void;
 }) {
-  if (bookmarks.length === 0) {
-    return <EmptyState />;
-  }
+  const visibleBooks = (selection.books || []).filter(book => {
+    const key = `${book.title}::${book.author}`;
+    if (hiddenBooks.has(key)) return false;
+    if (showBookmarkedOnly && !bookmarkedTitles.has(book.title)) return false;
+    return true;
+  });
+
+  if (visibleBooks.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
-      {bookmarks.map((bm) => (
-        <div key={bm.id} className="card p-4 fade-in-up group relative">
-          {/* Remove button */}
-          <button
-            onClick={() => onRemove(bm)}
-            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-            style={{ color: 'var(--color-text-dim)' }}
-            title="しおりをはずす"
-          >
-            ✕
-          </button>
-
-          {/* Cover */}
-          <div className="w-full aspect-2/3 rounded-lg overflow-hidden shadow-sm mb-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={bm.book_thumbnail || '/default-cover.png'}
-              alt={bm.book_title}
-              className="w-full h-full object-cover"
-              onError={(e) => { (e.target as HTMLImageElement).src = '/default-cover.png'; }}
-            />
-          </div>
-
-          {/* Info */}
-          <h3 className="text-xs font-bold leading-tight mb-1" style={{ color: 'var(--color-text)' }}>
-            {bm.book_title}
-          </h3>
-          <p className="text-[10px] mb-2" style={{ color: 'var(--color-text-dim)' }}>
-            {bm.book_author}
+    <div className="fade-in-up">
+      {/* Date & Note info */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--g-coral)' }} />
+        <div className="flex-1">
+          <p className="text-xs font-bold" style={{ color: 'var(--g-coral)' }}>
+            {new Date(selection.created_at).toLocaleDateString('ja-JP', {
+              year: 'numeric', month: 'long', day: 'numeric'
+            })}
           </p>
-          {bm.book_oneliner && (
-            <p className="text-[10px] italic" style={{ color: 'var(--g-coral)' }}>
-              {bm.book_oneliner}
-            </p>
-          )}
-
-          {/* Amazon link */}
-          {bm.book_amazon_url && (
-            <a
-              href={bm.book_amazon_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block text-[10px] font-bold mt-3 text-center py-1.5 rounded-md transition-all"
-              style={{ color: 'var(--color-accent)', background: 'rgba(208, 115, 74, 0.06)' }}
-            >
-              この本を見てみる →
-            </a>
+          {selection.note_title && (
+            <h3 className="text-sm font-bold mt-0.5" style={{ color: 'var(--color-text)' }}>
+              {selection.note_title}
+            </h3>
           )}
         </div>
-      ))}
+        {selection.note_url && (
+          <a href={selection.note_url} target="_blank" rel="noopener noreferrer"
+            className="text-[10px] shrink-0 px-2 py-1 rounded-md"
+            style={{ color: 'var(--color-accent)', background: 'rgba(208, 115, 74, 0.06)' }}>
+            元のnote →
+          </a>
+        )}
+      </div>
+
+      {/* Fragment quote */}
+      {selection.fragments && selection.fragments.length > 0 && (
+        <div className="mb-5 ml-4 pl-3" style={{ borderLeft: '2px solid var(--g-coral)', opacity: 0.7 }}>
+          <p className="text-xs italic leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+            「{selection.fragments[0]}」
+          </p>
+        </div>
+      )}
+
+      {/* Books grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 ml-4">
+        {visibleBooks.map((book, i) => {
+          const isBookmarked = bookmarkedTitles.has(book.title);
+          return (
+            <div key={i} className="group relative">
+              {/* Book card — tap opens modal */}
+              <button
+                onClick={() => onOpenModal(book)}
+                className="card p-3 w-full text-left transition-all hover:shadow-md active:scale-[0.98]"
+                style={{ cursor: 'pointer' }}
+              >
+                {/* Cover */}
+                <div className="w-full aspect-[2/3] rounded-lg overflow-hidden shadow-sm mb-3 relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={book.thumbnail || '/default-cover.png'}
+                    alt={book.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).src = '/default-cover.png'; }}
+                  />
+                  {isBookmarked && (
+                    <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-[10px]"
+                      style={{ background: 'rgba(255,255,255,0.9)', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
+                      🔖
+                    </div>
+                  )}
+                </div>
+
+                {/* Label (eyecatch) */}
+                {book.label && (
+                  <p className="text-[10px] font-bold leading-tight mb-1" style={{
+                    background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}>
+                    {book.label}
+                  </p>
+                )}
+
+                {/* Title & Author */}
+                <h4 className="text-xs font-bold leading-tight mb-0.5" style={{ color: 'var(--color-text)' }}>
+                  {book.title}
+                </h4>
+                <p className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>
+                  {book.author}
+                </p>
+              </button>
+
+              {/* Quick actions (visible on hover/tap) */}
+              <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                {!isBookmarked ? (
+                  <button onClick={(e) => { e.stopPropagation(); onBookmark(book); }}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] shadow-sm"
+                    style={{ background: 'rgba(255,255,255,0.95)' }} title="しおりをはさむ">
+                    🔖
+                  </button>
+                ) : (
+                  <button onClick={(e) => { e.stopPropagation(); onRemoveBookmark(book); }}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] shadow-sm"
+                    style={{ background: 'rgba(255,255,255,0.95)', color: 'var(--g-coral)' }} title="しおりをはずす">
+                    ✓
+                  </button>
+                )}
+                <button onClick={(e) => { e.stopPropagation(); onHide(book); }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] shadow-sm"
+                  style={{ background: 'rgba(255,255,255,0.95)', color: 'var(--color-text-dim)' }} title="そっと本棚から外す">
+                  ✕
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-/* ─── Auth Form ─── */
+/* ═══════════════════════════════════════════════
+   Book Detail Modal — The Letter Experience
+   「本棚から本を取り出すと、当時の手紙がしおりとして挟まっていた」
+   ═══════════════════════════════════════════════ */
+function BookDetailModal({
+  book,
+  bookmark,
+  fragment,
+  date,
+  isBookmarked,
+  onClose,
+  onBookmark,
+  onRemoveBookmark,
+}: {
+  book: BookData;
+  bookmark?: Bookmark;
+  fragment?: string;
+  date?: string;
+  isBookmarked: boolean;
+  onClose: () => void;
+  onBookmark: () => void;
+  onRemoveBookmark: () => void;
+}) {
+  // Use bookmark data if available (has letter from DB), otherwise use book data
+  const letter = bookmark?.book_letter || book.letter || '';
+  const summary = bookmark?.book_summary || book.summary || '';
+  const amazonUrl = bookmark?.book_amazon_url || book.amazonUrl || '';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      onClick={onClose}>
+      {/* Backdrop */}
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }} />
+
+      {/* Modal */}
+      <div
+        className="relative w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl"
+        style={{
+          background: 'var(--color-surface)',
+          boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
+          animation: 'slideUp 0.3s ease-out',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close button */}
+        <button onClick={onClose}
+          className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center z-10"
+          style={{ background: 'rgba(0,0,0,0.05)', color: 'var(--color-text-dim)' }}>
+          ✕
+        </button>
+
+        {/* Cover & basic info */}
+        <div className="p-6 pb-0">
+          <div className="flex gap-5">
+            {/* Cover image */}
+            <div className="w-24 h-36 rounded-lg overflow-hidden shadow-md shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={book.thumbnail || '/default-cover.png'}
+                alt={book.title}
+                className="w-full h-full object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).src = '/default-cover.png'; }}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              {/* Label eyecatch */}
+              {book.label && (
+                <p className="text-xs font-bold mb-1.5 leading-tight" style={{
+                  background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}>
+                  {book.label}
+                </p>
+              )}
+              <h2 className="text-base font-extrabold leading-tight mb-1" style={{ color: 'var(--color-text)' }}>
+                {book.title}
+              </h2>
+              <p className="text-xs mb-2" style={{ color: 'var(--color-text-dim)' }}>
+                {book.author}
+              </p>
+
+              {/* Bookmark toggle */}
+              <button
+                onClick={isBookmarked ? onRemoveBookmark : onBookmark}
+                className="text-[11px] font-bold px-3 py-1.5 rounded-full transition-all"
+                style={isBookmarked
+                  ? { background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', color: '#fff' }
+                  : { background: 'rgba(208, 115, 74, 0.08)', color: 'var(--color-accent)' }
+                }
+              >
+                {isBookmarked ? '🔖 しおりをはさみ中' : '🔖 しおりをはさむ'}
+              </button>
+            </div>
+          </div>
+
+          {/* Date context */}
+          {date && (
+            <p className="text-[10px] mt-4" style={{ color: 'var(--color-text-dim)' }}>
+              {new Date(date).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
+              にこの本と出会いました
+            </p>
+          )}
+        </div>
+
+        {/* Fragment — 当時の自分の言葉 */}
+        {fragment && (
+          <div className="mx-6 mt-5 p-4 rounded-xl" style={{ background: 'rgba(208, 115, 74, 0.04)', borderLeft: '3px solid var(--g-coral)' }}>
+            <p className="text-[10px] font-bold mb-1.5" style={{ color: 'var(--g-coral)' }}>
+              あなたが当時書いた一節
+            </p>
+            <p className="text-xs italic leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+              「{fragment}」
+            </p>
+          </div>
+        )}
+
+        {/* Letter — 手紙（しおりとして挟まっていた） */}
+        {letter && (
+          <div className="mx-6 mt-5 p-5 rounded-xl" style={{
+            background: 'linear-gradient(135deg, rgba(208, 115, 74, 0.03), rgba(242, 168, 124, 0.06))',
+            border: '1px solid rgba(208, 115, 74, 0.1)',
+          }}>
+            <p className="text-[10px] font-bold mb-2 flex items-center gap-1.5" style={{ color: 'var(--g-coral)' }}>
+              ✉️ あなた宛てのお手紙
+            </p>
+            <p className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>
+              {letter}
+            </p>
+          </div>
+        )}
+
+        {/* Summary */}
+        {summary && (
+          <div className="mx-6 mt-4">
+            <p className="text-[10px] font-bold mb-1" style={{ color: 'var(--color-text-dim)' }}>
+              この本について
+            </p>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+              {summary}
+            </p>
+          </div>
+        )}
+
+        {/* Amazon CTA — 感情が高まった状態で */}
+        {amazonUrl && (
+          <div className="p-6">
+            <a
+              href={amazonUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full text-center py-4 rounded-xl font-bold text-sm transition-all active:scale-[0.98]"
+              style={{
+                background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))',
+                color: '#fff',
+                boxShadow: '0 4px 16px rgba(232, 101, 90, 0.3)',
+              }}
+            >
+              📖 Amazonでこの本を迎え入れる
+            </a>
+            <p className="text-[9px] text-center mt-2" style={{ color: 'var(--color-text-dim)' }}>
+              Amazonのページに移動します
+            </p>
+          </div>
+        )}
+      </div>
+
+      <style jsx>{`
+        @keyframes slideUp {
+          from { transform: translateY(100%); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   Auth Form
+   ═══════════════════════════════════════════════ */
 function AuthForm() {
   const { signInWithGoogle, signUpWithEmail, signInWithEmail } = useAuth();
   const [mode, setMode] = useState<'signup' | 'signin'>('signup');
@@ -416,11 +696,7 @@ function AuthForm() {
 
   return (
     <div className="max-w-xs mx-auto">
-      {/* Google */}
-      <button
-        onClick={() => signInWithGoogle()}
-        className="btn-ghost w-full flex items-center justify-center gap-2 mb-4 py-3"
-      >
+      <button onClick={() => signInWithGoogle()} className="btn-ghost w-full flex items-center justify-center gap-2 mb-4 py-3">
         <svg width="18" height="18" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
           <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -429,45 +705,19 @@ function AuthForm() {
         </svg>
         Googleではじめる
       </button>
-
-      {/* Divider */}
       <div className="flex items-center gap-3 mb-4">
         <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
         <span className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>または</span>
         <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
       </div>
-
-      {/* Email form */}
       <form onSubmit={handleSubmit} className="space-y-3">
-        <input
-          type="email"
-          className="input-field"
-          placeholder="メールアドレス"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={submitting}
-        />
-        <input
-          type="password"
-          className="input-field"
-          placeholder="パスワード（6文字以上）"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={submitting}
-        />
-        {error && (
-          <p className="text-xs" style={{ color: 'var(--color-danger)' }}>{error}</p>
-        )}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="btn-primary w-full py-3"
-        >
+        <input type="email" className="input-field" placeholder="メールアドレス" value={email} onChange={(e) => setEmail(e.target.value)} disabled={submitting} />
+        <input type="password" className="input-field" placeholder="パスワード（6文字以上）" value={password} onChange={(e) => setPassword(e.target.value)} disabled={submitting} />
+        {error && <p className="text-xs" style={{ color: 'var(--color-danger)' }}>{error}</p>}
+        <button type="submit" disabled={submitting} className="btn-primary w-full py-3">
           {submitting ? '...' : mode === 'signup' ? '本棚をつくる（無料）' : 'ログインする'}
         </button>
       </form>
-
-      {/* Toggle */}
       <button
         onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setError(null); }}
         className="mt-4 text-xs block mx-auto"
@@ -479,14 +729,14 @@ function AuthForm() {
   );
 }
 
-/* ─── Empty State ─── */
+/* ═══════════════════════════════════════════════
+   Empty State
+   ═══════════════════════════════════════════════ */
 function EmptyState() {
   return (
     <div className="py-20 text-center">
-      <p
-        className="text-sm leading-loose max-w-xs mx-auto"
-        style={{ color: 'var(--color-text-dim)', fontStyle: 'italic' }}
-      >
+      <p className="text-sm leading-loose max-w-xs mx-auto"
+        style={{ color: 'var(--color-text-dim)', fontStyle: 'italic' }}>
         まだここには何もありませんが、<br />
         あなたが言葉を紡ぐたび、<br />
         ここはあなただけの特別な場所になっていきます。
