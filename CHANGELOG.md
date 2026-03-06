@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-03-06] — 表紙画像: Search Grounding + 3段階フォールバック
+
+### 🔧 Overhaul
+- **Gemini Search Grounding有効化**: AIが書籍推薦時にGoogle検索でISBNの実在を確認するよう強制（ハルシネーション対策）
+- **Google Books API削除**: 日本語書籍カバレッジ0%のため完全撤去
+- **3段階表紙取得**: 版元ドットコム → NDL → 美しいデフォルトカバー
+  - 版元ドットコム（`cover.hanmoto.com`）: 日本出版業界公式DB、APIキー不要
+  - NDL: 国立国会図書館サムネイル（既存、HEAD検証付き）
+  - デフォルト: Compass世界観に馴染む水彩画風カバー画像
+- **CSP更新**: `cover.hanmoto.com`追加、未使用のGoogle Books系ドメイン削除
+- **JSON+Grounding両立**: `responseMimeType:'application/json'`はGroundingと競合するため、テキスト出力+手動JSON解析に変更
+
 ## [2026-03-06] — CPO数値管理システム（Morning Assembly）
 
 ### ✨ Feature
