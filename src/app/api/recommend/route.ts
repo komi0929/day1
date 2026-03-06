@@ -55,66 +55,28 @@ interface BookFromAI {
 
 interface BookResult extends BookFromAI {
   thumbnail: string;
+  thumbnailFallback: string;
   amazonUrl: string;
 }
 
 /**
- * Multi-strategy server-side thumbnail resolution.
- * Chain: openBD (ISBN) → Google Books (title+author) → '' (CSS placeholder)
- * NDL thumbnail API shuts down 2026/3/31 — fully replaced.
+ * Build thumbnail URLs — zero network calls, zero latency.
+ * Returns { primary, fallback } URLs for client-side multi-stage loading.
+ * 
+ * Priority chain (client-side):
+ *   1. NDL (still active until 2026/3/31, best quality for JP books)
+ *   2. openBD cover URL (direct ISBN-based, no API call needed)
+ *   3. CSS placeholder (frontend handles when both fail)
  */
-async function resolveThumbnail(isbn: string, title: string, author: string): Promise<string> {
+function buildThumbnailUrls(isbn: string): { primary: string; fallback: string } {
   const cleanIsbn = (isbn || '').replace(/[^0-9]/g, '');
-
-  // Strategy 1: openBD (fast, reliable for Japanese books with valid ISBN)
-  if (cleanIsbn.length === 13) {
-    try {
-      const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${cleanIsbn}`, {
-        signal: AbortSignal.timeout(4000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const cover = data?.[0]?.summary?.cover;
-        if (cover && typeof cover === 'string' && cover.startsWith('http')) {
-          console.log(`[Cover] openBD hit: ${title} → ${cover}`);
-          return cover;
-        }
-      }
-    } catch (e) {
-      console.warn(`[Cover] openBD failed for ISBN ${cleanIsbn}:`, e);
-    }
+  if (cleanIsbn.length !== 13) {
+    return { primary: '', fallback: '' };
   }
-
-  // Strategy 2: Google Books API (title + author search)
-  try {
-    const query = encodeURIComponent(`${title} ${author}`);
-    const res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=3&fields=items(volumeInfo/imageLinks)`,
-      { signal: AbortSignal.timeout(4000) }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      const items = data?.items;
-      if (items && items.length > 0) {
-        for (const item of items) {
-          const thumb = item?.volumeInfo?.imageLinks?.thumbnail
-            || item?.volumeInfo?.imageLinks?.smallThumbnail;
-          if (thumb) {
-            // Google Books returns http URLs; upgrade to https and remove zoom limit
-            const url = thumb.replace('http://', 'https://').replace('&edge=curl', '');
-            console.log(`[Cover] Google Books hit: ${title} → ${url}`);
-            return url;
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.warn(`[Cover] Google Books failed for "${title}":`, e);
-  }
-
-  // Strategy 3: Return empty — frontend will render CSS placeholder
-  console.log(`[Cover] No cover found for: ${title}`);
-  return '';
+  return {
+    primary: `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`,
+    fallback: `https://cover.openbd.jp/${cleanIsbn}.jpg`,
+  };
 }
 
 export async function POST(req: Request) {
@@ -240,23 +202,22 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
     const books: BookFromAI[] = aiResult.books || [];
     const fragments: string[] = aiResult.fragments || [];
 
-    // Phase 2: Resolve thumbnails via openBD → Google Books → CSS placeholder
-    const enrichedBooks: BookResult[] = await Promise.all(
-      books.map(async (book) => {
-        const cleanIsbn = (book.isbn || '').replace(/[^0-9]/g, '');
-        const validIsbn = cleanIsbn.length === 13 ? cleanIsbn : '';
-        const thumbnail = await resolveThumbnail(validIsbn, book.title, book.author);
+    // Phase 2: Build thumbnail URLs (zero network calls = instant)
+    const enrichedBooks: BookResult[] = books.map((book) => {
+      const cleanIsbn = (book.isbn || '').replace(/[^0-9]/g, '');
+      const validIsbn = cleanIsbn.length === 13 ? cleanIsbn : '';
+      const { primary, fallback } = buildThumbnailUrls(validIsbn);
 
-        console.log(`[ISBN] ${book.title}: raw="${book.isbn}" clean="${validIsbn}" thumb="${thumbnail || '(placeholder)'}"`);
+      console.log(`[ISBN] ${book.title}: raw="${book.isbn}" clean="${validIsbn}" primary="${primary || '(none)'}" fallback="${fallback || '(none)'}"`);
 
-        return {
-          ...book,
-          isbn: validIsbn,
-          thumbnail,
-          amazonUrl: generateAmazonUrl(book.title, book.author),
-        };
-      })
-    );
+      return {
+        ...book,
+        isbn: validIsbn,
+        thumbnail: primary,
+        thumbnailFallback: fallback,
+        amazonUrl: generateAmazonUrl(book.title, book.author),
+      };
+    });
 
     return NextResponse.json({
       books: enrichedBooks,

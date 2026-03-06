@@ -14,6 +14,7 @@ interface BookResult {
   summary: string;
   letter: string;
   thumbnail: string;
+  thumbnailFallback?: string;
   amazonUrl: string;
 }
 
@@ -660,14 +661,28 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
   isBookmarked: boolean;
   onBookmark: () => void;
 }) {
-  const [imgError, setImgError] = useState(false);
-  const showPlaceholder = !book.thumbnail || imgError;
+  // Multi-stage cover image: primary (NDL) → fallback (openBD) → CSS placeholder
+  const [imgStage, setImgStage] = useState<'primary' | 'fallback' | 'placeholder'>(
+    book.thumbnail ? 'primary' : (book.thumbnailFallback ? 'fallback' : 'placeholder')
+  );
+
+  const currentSrc = imgStage === 'primary' ? book.thumbnail
+    : imgStage === 'fallback' ? (book.thumbnailFallback || '')
+    : '';
+
+  const handleImgError = () => {
+    if (imgStage === 'primary' && book.thumbnailFallback) {
+      setImgStage('fallback');
+    } else {
+      setImgStage('placeholder');
+    }
+  };
 
   return (
     <article className="book-card">
       <div className="book-cover-wrapper">
         <div className="book-cover-shadow" />
-        {showPlaceholder ? (
+        {imgStage === 'placeholder' ? (
           <div className="book-cover-placeholder">
             <div className="book-cover-placeholder-inner">
               <span className="book-cover-placeholder-title">{book.title}</span>
@@ -677,10 +692,10 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
         ) : (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img 
-            src={book.thumbnail} 
+            src={currentSrc} 
             alt={`${book.title} 表紙`} 
             className="book-cover-img"
-            onError={() => setImgError(true)}
+            onError={handleImgError}
             loading="lazy" 
             referrerPolicy="no-referrer" 
           />

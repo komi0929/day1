@@ -1,13 +1,13 @@
 # Changelog
 
-## [2026-03-07] — 表紙画像API完全移行: NDL終了 → openBD + Google Books
+## [2026-03-07] — 表紙画像: ゼロレイテンシ構築 + フロント多段フォールバック
 
-### ♻️ Critical Migration
-- **NDL書影API廃止対応**: 国立国会図書館の書影画像提供APIが2026/3/31に終了のため、完全移行
-- **openBD（プライマリ）**: ISBN-13でopenBD APIに問い合わせ、`summary.cover`から表紙画像URLを取得
-- **Google Books API（フォールバック）**: openBDで見つからない場合、タイトル+著者名で検索しサムネイル取得
-- **CSSプレースホルダー（最終フォールバック）**: どちらのAPIでも見つからない場合、タイトル・著者名を表示するデザインシステム準拠プレースホルダーを表示
-- **`/default-cover.png`依存の完全除去**: 全コンポーネント（BookCard, TimelineBlock, BookDetailModal）からstatic画像フォールバックを撤去、CSSプレースホルダーに統一
+### ♻️ Critical Fix
+- **サーバーサイドfetch全廃止**: openBD/Google Books APIのサーバーサイド呼び出しは、coverフィールド空文字・429クォータ制限で実用不可と判明。全て削除
+- **ゼロレイテンシURL構築**: ISBNからNDL・openBDのカバーURLを0msで構築して返却（ネットワークコスト0）
+- **フロントエンド3段フォールバック**: BookCardで `NDL(primary) → openBD(fallback) → CSSプレースホルダー` の順に自動試行、`imgStage`ステートで管理
+- **BookResultに`thumbnailFallback`追加**: APIレスポンスで2つのURL候補を返却
+- **NDL APIは2026/3/31まで稼働中**であることを実テストで確認。終了後はopenBD→CSSプレースホルダーに自動劣化
 
 ## [2026-03-06] — 表紙画像の解決を完全サーバーサイド事前検証へ移行
 
