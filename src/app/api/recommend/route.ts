@@ -59,17 +59,36 @@ interface BookResult extends BookFromAI {
 }
 
 /**
- * Build verified thumbnail URL — NO HEAD requests (they timeout on Vercel).
+ * Resolve thumbnail URL using openBD JSON API + NDL fallback.
  * 
- * VERIFIED 2026-03-06: Hanmoto (cover.hanmoto.com) DNS is DEAD — all fetches fail.
- * NDL tested 5/5 ISBN = 200 OK (125-220ms) with image/jpeg.
+ * Priority 1: openBD API (api.openbd.jp) — returns cover URL at cover.openbd.jp if available
+ * Priority 2: NDL direct URL — ~80% coverage for Japanese books with correct ISBNs
+ * Priority 3: /default-cover.png
  * 
- * Strategy: Construct NDL URL directly. NDL has ~80%+ coverage for Japanese books.
- * Client receives a valid URL or /default-cover.png — no onError needed.
+ * NOTE: cover.hanmoto.com DNS is dead, but api.openbd.jp works fine.
+ * openBD API responds in ~1ms per their docs, so minimal latency impact.
  */
-function buildThumbnailUrl(isbn: string): string {
+async function resolveBookCover(isbn: string): Promise<string> {
   const cleanIsbn = (isbn || '').replace(/[^0-9]/g, '');
   if (cleanIsbn.length !== 13) return '/default-cover.png';
+
+  // Try openBD API first (ultra-fast, ~1ms response)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${cleanIsbn}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    const data = await res.json();
+    if (data?.[0]?.summary?.cover) {
+      return data[0].summary.cover; // e.g. https://cover.openbd.jp/9784xxx.jpg
+    }
+  } catch {
+    // openBD timeout or error — fall through to NDL
+  }
+
+  // Fallback: NDL direct URL (no network call, construct URL directly)
   return `https://ndlsearch.ndl.go.jp/thumbnail/${cleanIsbn}.jpg`;
 }
 
@@ -196,11 +215,11 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
     const books: BookFromAI[] = aiResult.books || [];
     const fragments: string[] = aiResult.fragments || [];
 
-    // Phase 2: Build thumbnail URLs (no network calls = instant, no timeout risk)
-    const enrichedBooks: BookResult[] = books.map((book) => {
+    // Phase 2: Resolve thumbnail URLs (openBD API → NDL fallback, all books in parallel)
+    const enrichedBooks: BookResult[] = await Promise.all(books.map(async (book) => {
       const cleanIsbn = (book.isbn || '').replace(/[^0-9]/g, '');
       const validIsbn = cleanIsbn.length === 13 ? cleanIsbn : '';
-      const thumbnail = buildThumbnailUrl(validIsbn);
+      const thumbnail = await resolveBookCover(validIsbn);
 
       console.log(`[ISBN] ${book.title}: raw="${book.isbn}" clean="${validIsbn}" thumb="${thumbnail}"`);
 
@@ -210,7 +229,7 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
         thumbnail,
         amazonUrl: generateAmazonUrl(book.title, book.author),
       };
-    });
+    }));
 
     return NextResponse.json({
       books: enrichedBooks,

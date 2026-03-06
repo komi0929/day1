@@ -669,6 +669,7 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
           src={book.thumbnail || "/default-cover.png"} 
           alt={`${book.title} 表紙`} 
           className="book-cover-img"
+          onError={(e) => { (e.target as HTMLImageElement).src = '/default-cover.png'; (e.target as HTMLImageElement).onerror = null; }}
           loading="lazy" 
           referrerPolicy="no-referrer" 
         />
