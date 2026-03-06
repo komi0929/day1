@@ -213,11 +213,11 @@ export default function Home() {
 
   /* ─── Background Pre-fetch Next Batch ─── */
   useEffect(() => {
-    // If we have just 1 batch and are in results, and not searching yet, start prefetching the 2nd batch
-    if (phase === 'results' && bookBatches.length === 1 && !searchingMore) {
+    // If we are viewing the latest loaded batch, and we haven't reached maxBatches, start prefetching the next batch
+    if (phase === 'results' && currentBatch === bookBatches.length - 1 && bookBatches.length < maxBatches && !searchingMore) {
       loadNextBatch(true); // Pre-fetch in background without auto-navigating
     }
-  }, [phase, bookBatches.length, searchingMore, loadNextBatch]);
+  }, [phase, currentBatch, bookBatches.length, searchingMore, loadNextBatch]);
 
   /* ─── Bookmark handler ─── */
   const handleBookmark = useCallback(async (book: BookResult) => {
