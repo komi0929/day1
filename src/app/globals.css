@@ -837,3 +837,47 @@ input, textarea, button {
   color: var(--color-text-dim);
   margin-top: 2px;
 }
+
+/* ═══════════════════════════════════════════════
+   設定メニュー
+   ═══════════════════════════════════════════════ */
+.library-settings-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 200px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 6px;
+  z-index: 50;
+  animation: fadeInUp 0.15s ease-out;
+}
+
+.library-settings-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.library-settings-item:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.library-settings-danger {
+  color: #dc3545;
+}
+
+.library-settings-danger:hover {
+  background: rgba(220, 53, 69, 0.05);
+}

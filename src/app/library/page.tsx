@@ -44,14 +44,48 @@ interface Bookmark {
    Main Library Page
    ═══════════════════════════════════════════════ */
 export default function LibraryPage() {
-  const { user, session, loading: authLoading } = useAuth();
+  const { user, session, loading: authLoading, signOut } = useAuth();
   const [selections, setSelections] = useState<Selection[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'timeline' | 'bookmarks'>('timeline');
   const [hiddenBooks, setHiddenBooks] = useState<Set<string>>(new Set());
   const [modalBook, setModalBook] = useState<{ book: BookData; fragment?: string; date?: string } | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const migratedRef = useRef(false);
+
+  // ─── Settings handlers ───
+  const handleSignOut = async () => {
+    await signOut();
+    window.location.href = '/';
+  };
+
+  const handlePasswordReset = async () => {
+    const email = user?.email;
+    if (!email) return;
+    const { supabase } = await import('@/lib/supabase');
+    if (!supabase) return;
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/library`,
+    });
+    alert('パスワード変更用のメールをお送りしました。メールをご確認ください。');
+    setShowSettings(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!session?.access_token) return;
+    try {
+      await fetch('/api/account/delete', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      await signOut();
+      window.location.href = '/';
+    } catch {
+      alert('エラーが発生しました。もう一度お試しください。');
+    }
+  };
 
   // ─── Data fetching ───
   const fetchLibrary = useCallback(async () => {
@@ -251,10 +285,54 @@ export default function LibraryPage() {
                 {user?.user_metadata?.full_name || 'ゲスト'}さんの場所
               </p>
             </div>
-            <Link href="/" className="btn-ghost text-xs py-2 px-4">
-              本を探しにいく →
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link href="/" className="btn-ghost text-xs py-2 px-4">
+                本を探しにいく →
+              </Link>
+              <div className="relative">
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="text-xs py-2 px-3 rounded-lg transition-colors"
+                  style={{ color: 'var(--color-text-dim)', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+                >
+                  ⚙
+                </button>
+                {showSettings && (
+                  <div className="library-settings-menu">
+                    <button onClick={handleSignOut} className="library-settings-item">
+                      ここを離れる（ログアウト）
+                    </button>
+                    <button onClick={handlePasswordReset} className="library-settings-item">
+                      パスワードを変更する
+                    </button>
+                    <button onClick={() => setShowDeleteConfirm(true)} className="library-settings-item library-settings-danger">
+                      この場所を閉じる（退会）
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+
+          {/* Delete confirmation */}
+          {showDeleteConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.4)' }}>
+              <div className="max-w-sm w-full rounded-2xl p-6" style={{ background: 'var(--color-surface)' }}>
+                <h3 className="text-base font-bold mb-3" style={{ color: 'var(--color-text)' }}>本当にこの場所を閉じますか？</h3>
+                <p className="text-xs leading-relaxed mb-6" style={{ color: 'var(--color-text-muted)' }}>
+                  これまでの手紙や本棚の記録は、すべて失われます。この操作は取り消せません。
+                </p>
+                <div className="flex gap-3">
+                  <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-2.5 rounded-lg text-xs font-semibold" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text-dim)' }}>
+                    やめておく
+                  </button>
+                  <button onClick={handleDeleteAccount} className="flex-1 py-2.5 rounded-lg text-xs font-semibold" style={{ background: '#dc3545', color: '#fff' }}>
+                    閉じる（退会）
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="library-tabs mb-8">

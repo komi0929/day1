@@ -306,7 +306,7 @@ export default function Home() {
     <div className="gradient-warm min-h-dvh">
       {/* ═══ FIXED HEADER — always visible ═══ */}
       {phase !== 'input' && (
-        <header className="fixed top-0 left-0 right-0 z-40 px-4 py-3 flex items-center"
+        <header className="fixed top-0 left-0 right-0 z-40 px-4 py-3 flex items-center justify-between"
           style={{ background: 'rgba(253, 246, 238, 0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--color-border)' }}
         >
           <button onClick={handleGoHome} className="flex items-center gap-2 text-sm font-bold text-gradient" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
@@ -319,12 +319,25 @@ export default function Home() {
             </svg>
             compass
           </button>
+          {user && (
+            <Link href="/library" className="text-xs font-semibold" style={{ color: 'var(--color-text-dim)' }}>
+              📚 わたしの本棚
+            </Link>
+          )}
         </header>
       )}
 
       {/* ═══ INPUT PHASE ═══ */}
       {phase === 'input' && (
         <main className="min-h-dvh">
+          {/* User nav - visible on input screen */}
+          {user && (
+            <div className="flex justify-end px-5 pt-4">
+              <Link href="/library" className="text-xs font-semibold" style={{ color: 'var(--color-text-dim)' }}>
+                📚 わたしの本棚
+              </Link>
+            </div>
+          )}
           <section className="flex items-center justify-center px-4 pt-20 pb-12 md:pt-28 md:pb-16">
             <div className="max-w-lg w-full text-center">
               <div className="mb-10 fade-in-up">
