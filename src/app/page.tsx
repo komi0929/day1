@@ -212,13 +212,12 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  /* ─── Background Pre-fetch Next Batch ─── */
+  /* ─── Background Pre-fetch: 全バッチを連続で自動ロード ─── */
   useEffect(() => {
-    // If we are viewing the latest loaded batch, and we haven't reached maxBatches, start prefetching the next batch
-    if (phase === 'results' && currentBatch === bookBatches.length - 1 && bookBatches.length < maxBatches && !searchingMore) {
-      loadNextBatch(true); // Pre-fetch in background without auto-navigating
+    if (phase === 'results' && bookBatches.length < maxBatches && !searchingMore) {
+      loadNextBatch(true);
     }
-  }, [phase, currentBatch, bookBatches.length, searchingMore, loadNextBatch]);
+  }, [phase, bookBatches.length, searchingMore, loadNextBatch, maxBatches]);
 
   /* ─── Bookmark handler ─── */
   const handleBookmark = useCallback(async (book: BookResult) => {
