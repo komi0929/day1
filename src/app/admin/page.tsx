@@ -1,5 +1,9 @@
 'use client';
 
+// Prevent search engine indexing of admin page
+// Note: metadata export requires a separate layout or head component for client pages
+// Using a meta tag approach via useEffect instead
+
 import { useState, useEffect, useCallback } from 'react';
 
 /* ─── Types ─── */

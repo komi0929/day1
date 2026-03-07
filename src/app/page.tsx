@@ -309,7 +309,7 @@ export default function Home() {
         <header className="fixed top-0 left-0 right-0 z-40 px-4 py-3 flex items-center justify-between"
           style={{ background: 'rgba(253, 246, 238, 0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--color-border)' }}
         >
-          <button onClick={handleGoHome} className="flex items-center gap-2 text-sm font-bold text-gradient" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          <button onClick={handleGoHome} aria-label="ホームに戻る" className="flex items-center gap-2 text-sm font-bold text-gradient" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
             <svg width="20" height="20" viewBox="0 0 48 48" fill="none">
               <circle cx="24" cy="24" r="22" stroke="url(#chg)" strokeWidth="2.5" opacity="0.7" />
               <polygon points="24,8 21,24 27,24" fill="url(#chg)" />

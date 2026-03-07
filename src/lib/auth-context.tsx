@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     if (error) {
       if (error.message.includes('already registered')) {
-        return { error: 'このメールアドレスはすでに登録されています。ログインをお試しください。' };
+        return { error: '入力内容をご確認ください。すでにアカウントをお持ちの場合はログインをお試しください。' };
       }
       if (error.message.includes('password')) {
         return { error: 'パスワードは6文字以上でお願いします。' };

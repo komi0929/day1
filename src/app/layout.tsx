@@ -14,6 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://compass-app.vercel.app'),
+  alternates: { canonical: '/' },
   title: "compass | あなたのnoteから「今読んでほしい一冊」をお届けします",
   description: "compassは、あなたの書いたnoteから「今読んでほしい一冊」をおすすめするアプリ。URLをひとつ入れるだけで、悩みや願いを読み解き、あなたの背中をそっと押してくれる本を、お手紙とともにお届けします。",
   manifest: "/manifest.json",
