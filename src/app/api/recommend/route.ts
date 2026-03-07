@@ -60,21 +60,67 @@ interface BookResult extends BookFromAI {
 }
 
 /**
- * 表紙画像URL取得 — openBD一本化:
- *   ISBNがあれば cover.openbd.jp/{isbn}.jpg を返す。
- *   openBDは日本語書籍のカバー画像をほぼ100%網羅。
- *   ISBNがない場合のみ空文字（CSSプレースホルダー）。
+ * 表紙画像URL取得 — ISBN検索による正確な画像取得:
+ *   1. Google Books API「ISBN検索」(q=isbn:XXXXX) — ISBNで検索するので確実に正しい書籍の画像
+ *   2. openBD カバー (cover.openbd.jp/{isbn}.jpg) — Google Booksにない場合
+ *   3. 空文字 → CSSプレースホルダー
  *
- * Google Books APIは使わない（タイトル検索で無関連画像を返すバグの元凶）。
+ * ※ タイトル検索は使わない（無関連画像を返すバグの原因だったため）
  */
 async function getBookCover(isbn: string, title: string): Promise<string> {
-  if (isbn && /^\d{13}$/.test(isbn)) {
-    const openbdUrl = `https://cover.openbd.jp/${isbn}.jpg`;
-    console.log(`[Cover] openBD for "${title}": ISBN=${isbn} → ${openbdUrl}`);
-    return openbdUrl;
+  if (!isbn || !/^\d{13}$/.test(isbn)) {
+    console.log(`[Cover] No valid ISBN for "${title}" — using placeholder`);
+    return '';
   }
 
-  console.log(`[Cover] No ISBN for "${title}" — using placeholder`);
+  // ── Stage 1: Google Books API（ISBN検索 — 確実に正しい書籍） ──
+  const googleApiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
+  if (googleApiKey) {
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&fields=items(volumeInfo(imageLinks))&key=${googleApiKey}`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const items = data?.items;
+        if (items && items.length > 0) {
+          const imageLinks = items[0]?.volumeInfo?.imageLinks;
+          const rawUrl = imageLinks?.thumbnail || imageLinks?.smallThumbnail;
+          if (rawUrl) {
+            const url = rawUrl
+              .replace('http://', 'https://')
+              .replace('&edge=curl', '');
+            console.log(`[Cover] GoogleBooks ISBN hit for "${title}": ${url}`);
+            return url;
+          }
+        }
+      }
+      console.log(`[Cover] GoogleBooks no thumbnail for ISBN=${isbn} ("${title}")`);
+    } catch (e) {
+      console.warn(`[Cover] GoogleBooks ISBN search failed for "${title}":`, e);
+    }
+  }
+
+  // ── Stage 2: openBD カバー ──
+  try {
+    const openbdRes = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (openbdRes.ok) {
+      const openbdData = await openbdRes.json();
+      const coverUrl = openbdData?.[0]?.summary?.cover;
+      if (coverUrl) {
+        console.log(`[Cover] openBD hit for "${title}": ${coverUrl}`);
+        return coverUrl;
+      }
+    }
+    console.log(`[Cover] openBD no cover for ISBN=${isbn} ("${title}")`);
+  } catch (e) {
+    console.warn(`[Cover] openBD failed for "${title}":`, e);
+  }
+
+  console.log(`[Cover] No cover found for "${title}" (ISBN=${isbn})`);
   return '';
 }
 
