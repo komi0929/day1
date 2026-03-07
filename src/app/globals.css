@@ -105,7 +105,11 @@ input, textarea, button {
 }
 
 .gradient-warm {
-  background: url('/bg-artistic.png') center/cover fixed no-repeat, var(--color-bg);
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(232, 101, 90, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 20%, rgba(242, 168, 124, 0.20) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 90%, rgba(232, 197, 71, 0.18) 0%, transparent 55%),
+    var(--color-bg);
 }
 
 .gradient-cool {
