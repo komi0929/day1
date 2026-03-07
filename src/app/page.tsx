@@ -304,6 +304,7 @@ export default function Home() {
 
   return (
     <div className="gradient-warm min-h-dvh">
+      <div className="noise-bg" />
       {/* ═══ FIXED HEADER — always visible ═══ */}
       {phase !== 'input' && (
         <header className="fixed top-0 left-0 right-0 z-40 px-4 py-3 flex items-center justify-between"
