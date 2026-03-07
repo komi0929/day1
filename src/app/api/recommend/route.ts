@@ -57,25 +57,23 @@ interface BookFromAI {
 interface BookResult extends BookFromAI {
   thumbnail: string;
   amazonUrl: string;
+  rakutenUrl: string;
+}
+
+interface CoverResult {
+  coverUrl: string;
+  rakutenUrl: string;
 }
 
 /** 正規化ヘルパー */
 const normTitle = (s: string) => s.toLowerCase().replace(/[\s\u3000・:：\-−–—「」『』()（）\[\]【】、。,./／]/g, '');
 
-/** タイトル照合（厳格 — ISBN検索用）: 間違ったISBNで別の本の画像取得を防止 */
-function strictTitleMatch(aiTitle: string, apiTitle: string): boolean {
-  const a = normTitle(aiTitle), b = normTitle(apiTitle);
-  if (!a || !b) return false;
-  return a.includes(b) || b.includes(a) || (a.length >= 3 && b.length >= 3 && a.slice(0, 3) === b.slice(0, 3));
-}
-
-/** タイトル照合（寛容 — タイトル検索用）: 検索クエリ自体がタイトルなので緩くしてOK */
-function softTitleMatch(aiTitle: string, apiTitle: string): boolean {
+/** タイトル照合: API結果がAI出力タイトルと一致するか */
+function titleMatch(aiTitle: string, apiTitle: string): boolean {
   const a = normTitle(aiTitle), b = normTitle(apiTitle);
   if (!a || !b) return false;
   if (a.includes(b) || b.includes(a)) return true;
   if (a.length >= 2 && b.length >= 2 && a.slice(0, 2) === b.slice(0, 2)) return true;
-  // 共通文字率30%以上
   let common = 0;
   const bSet = new Set(b);
   for (const c of a) { if (bSet.has(c)) common++; }
@@ -83,72 +81,63 @@ function softTitleMatch(aiTitle: string, apiTitle: string): boolean {
 }
 
 /**
- * 表紙画像URL取得 — 4段階カスケード:
+ * 表紙画像 + 購入URL取得 — 3段階カスケード:
  *
- *   Stage 1: AI提供ISBN → Google Books ISBN検索 (タイトル照合ガード付き)
- *   Stage 2: AI提供ISBN → openBD /v1/get (タイトル照合ガード付き)
- *   Stage 3: Google Books タイトル検索 → タイトル一致する結果のISBN取得 → openBDカバー取得
- *   Stage 4: Google Books タイトル検索 → タイトル一致する結果のサムネイル直取得
- *   Stage 5: CSSプレースホルダー
+ *   Stage 1 (Main):     楽天ブックスAPI — タイトル+著者で検索。カバー画像+購入URLをワンストップ取得
+ *   Stage 2 (Fallback):  Google Books API — 楽天にない洋書・専門書カバー
+ *   Stage 3 (Fallback):  openBD — 最終チェック
+ *   Stage 4:             CSSプレースホルダー
  *
  *   ※ 全段階でタイトル照合ガード付き。間違った画像は絶対に表示しない。
  */
-async function getBookCover(isbn: string, title: string, author: string): Promise<string> {
-  const googleApiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
-  const validIsbn = isbn && /^\d{13}$/.test(isbn) ? isbn : '';
+async function getBookCover(title: string, author: string): Promise<CoverResult> {
+  const empty: CoverResult = { coverUrl: '', rakutenUrl: '' };
 
-  // ── Stage 1: AI提供ISBN → Google Books ISBN検索 ──
-  if (validIsbn && googleApiKey) {
+  // ── Stage 1 (Main): 楽天ブックスAPI ──
+  const rakutenAppId = process.env.RAKUTEN_APP_ID || '';
+  const rakutenAffId = process.env.RAKUTEN_AFFILIATE_ID || '';
+  if (rakutenAppId) {
     try {
-      const res = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=isbn:${validIsbn}&fields=items(volumeInfo(title,imageLinks))&key=${googleApiKey}`,
-        { signal: AbortSignal.timeout(5000) }
-      );
+      const q = encodeURIComponent(title);
+      const a = encodeURIComponent(author);
+      const rakutenUrl = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&title=${q}&author=${a}&hits=3&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
+      const res = await fetch(rakutenUrl, { signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         const data = await res.json();
-        const vi = data?.items?.[0]?.volumeInfo;
-        if (vi) {
-          const apiTitle = vi.title || '';
-          const rawUrl = vi.imageLinks?.thumbnail || vi.imageLinks?.smallThumbnail;
-          if (rawUrl && strictTitleMatch(title, apiTitle)) {
-            const url = rawUrl.replace('http://', 'https://').replace('&edge=curl', '');
-            console.log(`[Cover] Stage1 GoogleBooks ISBN hit: "${title}" → ${url}`);
-            return url;
-          } else if (rawUrl) {
-            console.warn(`[Cover] Stage1 ISBN MISMATCH: "${title}" ≠ "${apiTitle}"`);
+        const items = data?.Items;
+        if (items && items.length > 0) {
+          for (const wrapper of items) {
+            const item = wrapper?.Item;
+            if (!item) continue;
+            const apiTitle = item.title || '';
+            if (!titleMatch(title, apiTitle)) {
+              console.log(`[Cover] Rakuten skip: "${title}" ≠ "${apiTitle}"`);
+              continue;
+            }
+            const coverUrl = (item.largeImageUrl || item.mediumImageUrl || '')
+              .replace('?_ex=200x200', '?_ex=300x300')
+              .replace('?_ex=120x120', '?_ex=300x300');
+            if (coverUrl) {
+              const purchaseUrl = item.affiliateUrl || item.itemUrl || '';
+              console.log(`[Cover] Stage1 Rakuten hit: "${title}" → "${apiTitle}"`);
+              return { coverUrl, rakutenUrl: purchaseUrl };
+            }
           }
         }
       }
+      console.log(`[Cover] Stage1 Rakuten: no match for "${title}"`);
     } catch (e) {
-      console.warn(`[Cover] Stage1 failed for "${title}":`, e);
+      console.warn(`[Cover] Stage1 Rakuten failed:`, e);
     }
   }
 
-  // ── Stage 2: AI提供ISBN → openBD ──
-  if (validIsbn) {
-    try {
-      const openbdRes = await fetch(`https://api.openbd.jp/v1/get?isbn=${validIsbn}`, {
-        signal: AbortSignal.timeout(3000),
-      });
-      if (openbdRes.ok) {
-        const d = await openbdRes.json();
-        const summary = d?.[0]?.summary;
-        if (summary?.cover && strictTitleMatch(title, summary.title || '')) {
-          console.log(`[Cover] Stage2 openBD ISBN hit: "${title}" → ${summary.cover}`);
-          return summary.cover;
-        }
-      }
-    } catch (e) {
-      console.warn(`[Cover] Stage2 failed for "${title}":`, e);
-    }
-  }
-
-  // ── Stage 3 & 4: Google Books タイトル検索（寛容照合） ──
+  // ── Stage 2 (Fallback): Google Books API ──
+  const googleApiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
   if (googleApiKey) {
     try {
       const query = encodeURIComponent(`${title} ${author}`);
       const res = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,authors,imageLinks,industryIdentifiers))&key=${googleApiKey}`,
+        `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,imageLinks))&key=${googleApiKey}`,
         { signal: AbortSignal.timeout(5000) }
       );
       if (res.ok) {
@@ -158,52 +147,28 @@ async function getBookCover(isbn: string, title: string, author: string): Promis
           for (const item of items) {
             const vi = item?.volumeInfo;
             const apiTitle = vi?.title || '';
-            if (!softTitleMatch(title, apiTitle)) {
-              console.log(`[Cover] Stage3/4 softMatch skip: "${title}" ≠ "${apiTitle}"`);
-              continue;
-            }
-
-            // Stage 3: ISBNでopenBDカバー
-            const ids = vi?.industryIdentifiers || [];
-            const isbn13 = ids.find((id: {type: string; identifier: string}) => id.type === 'ISBN_13')?.identifier || '';
-            if (isbn13) {
-              try {
-                const obRes = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn13}`, {
-                  signal: AbortSignal.timeout(3000),
-                });
-                if (obRes.ok) {
-                  const obData = await obRes.json();
-                  const cover = obData?.[0]?.summary?.cover;
-                  if (cover) {
-                    console.log(`[Cover] Stage3 openBD: "${title}" → "${apiTitle}" ISBN=${isbn13} → ${cover}`);
-                    return cover;
-                  }
-                }
-              } catch (e) {
-                console.warn(`[Cover] Stage3 openBD failed:`, e);
-              }
-            }
-
-            // Stage 4: Google Booksサムネイル（タイトル照合済み）
+            if (!titleMatch(title, apiTitle)) continue;
             const rawUrl = vi?.imageLinks?.thumbnail || vi?.imageLinks?.smallThumbnail;
             if (rawUrl) {
-              const url = rawUrl.replace('http://', 'https://').replace('&edge=curl', '');
-              console.log(`[Cover] Stage4 thumbnail: "${title}" → "${apiTitle}" → ${url}`);
-              return url;
+              const coverUrl = rawUrl.replace('http://', 'https://').replace('&edge=curl', '');
+              console.log(`[Cover] Stage2 GoogleBooks: "${title}" → "${apiTitle}"`);
+              return { coverUrl, rakutenUrl: '' };
             }
           }
-        } else {
-          console.log(`[Cover] Stage3/4 no results from GoogleBooks for "${title}"`);
         }
       }
     } catch (e) {
-      console.warn(`[Cover] Stage3/4 failed:`, e);
+      console.warn(`[Cover] Stage2 GoogleBooks failed:`, e);
     }
   }
 
-  console.log(`[Cover] No cover found for "${title}"`);
-  return '';
+  // ── Stage 3 (Fallback): openBD ──
+  // openBDはISBN必須のため、楽天・Google Booksで見つからない場合はスキップ
+  console.log(`[Cover] No cover: "${title}"`);
+  return empty;
 }
+
+
 
 export async function POST(req: Request) {
   try {
@@ -328,21 +293,17 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
     const books: BookFromAI[] = aiResult.books || [];
     const fragments: string[] = aiResult.fragments || [];
 
-    // Phase 2: 表紙画像取得（openBD: ISBN → カバー画像）
+    // Phase 2: 表紙画像 + 購入URL取得（楽天 → Google Books → openBD）
     const enrichedBooks: BookResult[] = await Promise.all(
       books.map(async (book) => {
-        // ISBNバリデーション: 13桁数字のみ有効
-        const isbn = (book.isbn || '').replace(/[^0-9]/g, '');
-        const validIsbn = isbn.length === 13 ? isbn : '';
-
-        const thumbnail = await getBookCover(validIsbn, book.title, book.author);
-        console.log(`[Result] ${book.title} by ${book.author} | ISBN=${validIsbn || 'N/A'} | cover=${thumbnail ? 'YES' : 'NO'}`);
+        const coverResult = await getBookCover(book.title, book.author);
+        console.log(`[Result] ${book.title} by ${book.author} | cover=${coverResult.coverUrl ? 'YES' : 'NO'} | rakuten=${coverResult.rakutenUrl ? 'YES' : 'NO'}`);
 
         return {
           ...book,
-          isbn: validIsbn,
-          thumbnail,
+          thumbnail: coverResult.coverUrl,
           amazonUrl: generateAmazonUrl(book.title, book.author),
+          rakutenUrl: coverResult.rakutenUrl,
         };
       })
     );

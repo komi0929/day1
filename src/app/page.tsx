@@ -15,6 +15,7 @@ interface BookResult {
   letter: string;
   thumbnail: string;
   amazonUrl: string;
+  rakutenUrl?: string;
 }
 
 type AppPhase = 'input' | 'waiting' | 'results';
@@ -718,10 +719,18 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
         </div>
       )}
 
-      <a href={book.amazonUrl} target="_blank" rel="noopener noreferrer" className="book-amazon-link"
-        onClick={() => track('amazon_click', { bookTitle: book.title })}>
-        Amazonで見る →
-      </a>
+      <div className="book-purchase-links">
+        {book.rakutenUrl && (
+          <a href={book.rakutenUrl} target="_blank" rel="noopener noreferrer" className="book-rakuten-link"
+            onClick={() => track('rakuten_click', { bookTitle: book.title })}>
+            楽天ブックスで見る →
+          </a>
+        )}
+        <a href={book.amazonUrl} target="_blank" rel="noopener noreferrer" className="book-amazon-link"
+          onClick={() => track('amazon_click', { bookTitle: book.title })}>
+          Amazonで見る →
+        </a>
+      </div>
     </article>
   );
 }

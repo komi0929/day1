@@ -565,18 +565,36 @@ input, textarea, button {
   font-style: italic;
 }
 
-/* ─── Amazonリンク ─── */
+/* ─── 購入リンク ─── */
+.book-purchase-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: auto;
+}
+
+.book-rakuten-link,
 .book-amazon-link {
   display: block;
   text-align: center;
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-accent);
   text-decoration: none;
   padding: 8px;
   border-radius: 8px;
   transition: all 0.2s;
-  margin-top: auto;
+}
+
+.book-rakuten-link {
+  color: #bf0000;
+}
+
+.book-amazon-link {
+  color: var(--color-accent);
+}
+
+.book-rakuten-link:hover {
+  background: rgba(191, 0, 0, 0.08);
 }
 
 .book-amazon-link:hover {

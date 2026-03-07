@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Content-Security-Policy",
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://books.google.com https://books.googleusercontent.com https://cover.openbd.jp https://ndlsearch.ndl.go.jp https://cover.hanmoto.com; connect-src 'self' https://*.supabase.co https://*.supabase.in https://generativelanguage.googleapis.com; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'",
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://thumbnail.image.rakuten.co.jp https://books.google.com https://books.googleusercontent.com https://cover.openbd.jp https://ndlsearch.ndl.go.jp https://cover.hanmoto.com; connect-src 'self' https://*.supabase.co https://*.supabase.in https://generativelanguage.googleapis.com; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'",
           },
         ],
       },
