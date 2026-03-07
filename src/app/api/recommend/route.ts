@@ -143,7 +143,7 @@ async function getBookCover(isbn: string, title: string, author: string): Promis
     }
   }
 
-  // ── Stage 3 & 4: Google Books タイトル検索 → ISBN取得 → openBD or サムネイル ──
+  // ── Stage 3 & 4: Google Books タイトル検索（寛容照合） ──
   if (googleApiKey) {
     try {
       const query = encodeURIComponent(`${title} ${author}`);
@@ -155,13 +155,26 @@ async function getBookCover(isbn: string, title: string, author: string): Promis
         const data = await res.json();
         const items = data?.items;
         if (items && items.length > 0) {
-          // タイトル一致する結果を探す
+          let firstThumbUrl = '';
+          let firstThumbTitle = '';
           for (const item of items) {
             const vi = item?.volumeInfo;
             const apiTitle = vi?.title || '';
-            if (!softTitleMatch(title, apiTitle)) continue;
+            const matched = softTitleMatch(title, apiTitle);
+            if (!matched) {
+              console.log(`[Cover] Stage3/4 softMatch skip: "${title}" ≠ "${apiTitle}"`);
+              // 最初のサムネイルを記録（フォールバック用）
+              if (!firstThumbUrl) {
+                const raw = vi?.imageLinks?.thumbnail || vi?.imageLinks?.smallThumbnail;
+                if (raw) {
+                  firstThumbUrl = raw.replace('http://', 'https://').replace('&edge=curl', '');
+                  firstThumbTitle = apiTitle;
+                }
+              }
+              continue;
+            }
 
-            // Stage 3: ISBNを取得してopenBDカバーを試す
+            // Stage 3: ISBNでopenBDカバー
             const ids = vi?.industryIdentifiers || [];
             const isbn13 = ids.find((id: {type: string; identifier: string}) => id.type === 'ISBN_13')?.identifier || '';
             if (isbn13) {
@@ -173,7 +186,7 @@ async function getBookCover(isbn: string, title: string, author: string): Promis
                   const obData = await obRes.json();
                   const cover = obData?.[0]?.summary?.cover;
                   if (cover) {
-                    console.log(`[Cover] Stage3 openBD via title search: "${title}" ISBN=${isbn13} → ${cover}`);
+                    console.log(`[Cover] Stage3 openBD: "${title}" → "${apiTitle}" ISBN=${isbn13} → ${cover}`);
                     return cover;
                   }
                 }
@@ -182,18 +195,26 @@ async function getBookCover(isbn: string, title: string, author: string): Promis
               }
             }
 
-            // Stage 4: Google Booksサムネイル直取得（タイトル照合済み）
+            // Stage 4: Google Booksサムネイル
             const rawUrl = vi?.imageLinks?.thumbnail || vi?.imageLinks?.smallThumbnail;
             if (rawUrl) {
               const url = rawUrl.replace('http://', 'https://').replace('&edge=curl', '');
-              console.log(`[Cover] Stage4 GoogleBooks title match: "${title}" → "${apiTitle}" → ${url}`);
+              console.log(`[Cover] Stage4 thumbnail: "${title}" → "${apiTitle}" → ${url}`);
               return url;
             }
           }
+          // Stage 4b: softMatchで一致しなくても、検索結果の最初のサムネイルを使用
+          // （Google Books検索クエリが「タイトル 著者」なので、最初の結果は通常正しい）
+          if (firstThumbUrl) {
+            console.log(`[Cover] Stage4b first-result fallback: "${title}" → "${firstThumbTitle}" → ${firstThumbUrl}`);
+            return firstThumbUrl;
+          }
+        } else {
+          console.log(`[Cover] Stage3/4 no results from GoogleBooks for "${title}"`);
         }
       }
     } catch (e) {
-      console.warn(`[Cover] Stage3/4 failed for "${title}":`, e);
+      console.warn(`[Cover] Stage3/4 failed:`, e);
     }
   }
 
