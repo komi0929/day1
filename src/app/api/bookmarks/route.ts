@@ -24,24 +24,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'INVALID_BOOK' }, { status: 400 });
     }
 
-    const { error } = await supabase.from('bookmarks').upsert({
+    // 既存のブックマークを削除（重複防止）
+    await supabase.from('bookmarks')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('book_title', book.title)
+      .eq('book_author', book.author);
+
+    // 新規挿入
+    const insertData: Record<string, unknown> = {
       user_id: user.id,
       selection_id: selectionId || null,
       book_title: book.title,
       book_author: book.author,
       book_label: book.label || '',
-      book_headline: book.headline || '',
-      book_oneliner: book.oneliner || '',
       book_summary: book.summary || '',
       book_letter: book.letter || '',
       book_thumbnail: book.thumbnail || '',
       book_amazon_url: book.amazonUrl || '',
       book_rakuten_url: book.rakutenUrl || '',
-    }, { onConflict: 'user_id,book_title,book_author' });
+    };
+
+    const { error } = await supabase.from('bookmarks').insert(insertData);
 
     if (error) {
-      console.error('Bookmark error:', error);
-      return NextResponse.json({ error: 'BOOKMARK_FAILED' }, { status: 500 });
+      console.error('Bookmark insert error:', JSON.stringify(error));
+      return NextResponse.json({ error: 'BOOKMARK_FAILED', details: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

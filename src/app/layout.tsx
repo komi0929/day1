@@ -20,8 +20,11 @@ export const metadata: Metadata = {
   description: "compassは、あなたの書いたnoteから「今読んでほしい一冊」をおすすめするアプリ。URLをひとつ入れるだけで、悩みや願いを読み解き、あなたの背中をそっと押してくれる本を、お手紙とともにお届けします。",
   manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.png",
-    apple: "/favicon.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
   },
   appleWebApp: {
     capable: true,

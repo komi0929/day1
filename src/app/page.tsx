@@ -323,7 +323,8 @@ export default function Home() {
             compass
           </button>
           {user && (
-            <Link href="/library" className="text-xs font-semibold" style={{ color: 'var(--color-text-dim)' }}>
+            <Link href="/library" className="text-sm font-bold px-5 py-2.5 rounded-full transition-all active:scale-[0.97]"
+              style={{ color: '#fff', background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', boxShadow: '0 2px 8px rgba(232, 101, 90, 0.25)' }}>
               📚 わたしの本棚
             </Link>
           )}
@@ -336,7 +337,8 @@ export default function Home() {
           {/* User nav - visible on input screen */}
           {user && (
             <div className="flex justify-end px-5 pt-4">
-              <Link href="/library" className="text-xs font-semibold" style={{ color: 'var(--color-text-dim)' }}>
+              <Link href="/library" className="text-sm font-bold px-5 py-2.5 rounded-full transition-all active:scale-[0.97]"
+                style={{ color: '#fff', background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', boxShadow: '0 2px 8px rgba(232, 101, 90, 0.25)' }}>
                 📚 わたしの本棚
               </Link>
             </div>
@@ -344,18 +346,24 @@ export default function Home() {
           <section className="flex items-center justify-center px-4 pt-20 pb-12 md:pt-28 md:pb-16">
             <div className="max-w-lg w-full text-center">
               <div className="mb-10 fade-in-up">
-                <div className="mx-auto mb-5 w-14 h-14 flex items-center justify-center">
-                  <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                    <circle cx="24" cy="24" r="22" stroke="url(#cg)" strokeWidth="2.5" opacity="0.7" />
-                    <circle cx="24" cy="24" r="17" stroke="url(#cg)" strokeWidth="1.2" opacity="0.35" />
-                    <line x1="24" y1="2" x2="24" y2="7" stroke="url(#cg)" strokeWidth="2" strokeLinecap="round" />
-                    <line x1="24" y1="41" x2="24" y2="46" stroke="url(#cg)" strokeWidth="2" strokeLinecap="round" />
-                    <line x1="2" y1="24" x2="7" y2="24" stroke="url(#cg)" strokeWidth="2" strokeLinecap="round" />
-                    <line x1="41" y1="24" x2="46" y2="24" stroke="url(#cg)" strokeWidth="2" strokeLinecap="round" />
-                    <polygon points="24,8 21,24 27,24" fill="url(#cg)" />
-                    <polygon points="24,40 21,24 27,24" fill="rgba(44,37,32,0.18)" />
-                    <circle cx="24" cy="24" r="2.5" fill="url(#cg)" />
-                    <defs><linearGradient id="cg" x1="8" y1="8" x2="40" y2="40"><stop offset="0%" stopColor="#E8655A" /><stop offset="100%" stopColor="#F2A87C" /></linearGradient></defs>
+                <div className="mx-auto mb-5 w-16 h-16 flex items-center justify-center rounded-full"
+                  style={{ background: 'linear-gradient(135deg, rgba(232,101,90,0.12), rgba(242,168,124,0.18))', boxShadow: '0 4px 20px rgba(232,101,90,0.10)' }}>
+                  <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
+                    <defs>
+                      <linearGradient id="cg" x1="8" y1="8" x2="40" y2="40">
+                        <stop offset="0%" stopColor="#E8655A" />
+                        <stop offset="100%" stopColor="#F2A87C" />
+                      </linearGradient>
+                      <filter id="noise">
+                        <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+                        <feColorMatrix type="saturate" values="0" />
+                        <feBlend in="SourceGraphic" mode="multiply" />
+                      </filter>
+                    </defs>
+                    <circle cx="24" cy="24" r="21" stroke="url(#cg)" strokeWidth="1.5" opacity="0.5" />
+                    <polygon points="24,7 20.5,24 27.5,24" fill="url(#cg)" />
+                    <polygon points="24,41 20.5,24 27.5,24" fill="rgba(44,37,32,0.15)" />
+                    <circle cx="24" cy="24" r="2" fill="url(#cg)" />
                   </svg>
                 </div>
                 <h1 className="text-3xl md:text-4xl font-black text-gradient tracking-tight mb-4">compass</h1>
@@ -401,7 +409,7 @@ export default function Home() {
 
           <section className="px-4 pb-16">
             <div className="max-w-2xl mx-auto">
-              <h2 className="text-center text-xs font-bold tracking-[3px] uppercase mb-8" style={{ color: 'var(--color-text-dim)' }}>使い方</h2>
+
               <div className="how-steps">
                 {[
                   { n: '1', t: 'noteのURLをひとつ', d: 'あなたが書いたnoteの記事URLを教えてください。悩み、考えごと、日記——どんな記事でも大丈夫です。' },

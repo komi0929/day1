@@ -528,30 +528,21 @@ function TimelineBlock({
         )}
       </div>
 
-      {/* Fragment quote */}
-      {selection.fragments && selection.fragments.length > 0 && (
-        <div className="mb-5 ml-4 pl-3" style={{ borderLeft: '2px solid var(--g-coral)', opacity: 0.7 }}>
-          <p className="text-xs italic leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-            「{selection.fragments[0]}」
-          </p>
-        </div>
-      )}
-
       {/* Books — 横スワイプ（同じnoteの書籍を横に並べる） */}
       <div className="ml-4 -mr-5 overflow-x-auto pb-3" style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}>
         <div className="flex gap-4 pr-5" style={{ minWidth: 'min-content' }}>
           {visibleBooks.map((book, i) => {
             const isBookmarked = bookmarkedTitles.has(book.title);
             return (
-              <div key={i} className="relative shrink-0" style={{ width: '160px', scrollSnapAlign: 'start' }}>
+              <div key={i} className="relative shrink-0" style={{ width: '140px', scrollSnapAlign: 'start' }}>
                 {/* Book card — tap opens modal */}
                 <button
                   onClick={() => onOpenModal(book)}
-                  className="card p-3 w-full text-left transition-all hover:shadow-md active:scale-[0.98]"
+                  className="card p-2.5 w-full text-left transition-all hover:shadow-md active:scale-[0.98]"
                   style={{ cursor: 'pointer' }}
                 >
                   {/* Cover */}
-                  <div className="w-full aspect-[2/3] rounded-lg overflow-hidden shadow-sm mb-3 relative">
+                  <div className="w-full aspect-[2/3] rounded-lg overflow-hidden shadow-sm relative">
                     {book.thumbnail ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
@@ -568,48 +559,23 @@ function TimelineBlock({
                       </div>
                     </div>
                   </div>
-
-                  {/* Label (eyecatch) */}
-                  {book.label && (
-                    <p className="text-[10px] font-bold leading-tight mb-1" style={{
-                      background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                    }}>
-                      {book.label}
-                    </p>
-                  )}
-
-                  {/* Title & Author */}
-                  <h4 className="text-xs font-bold leading-tight mb-0.5" style={{ color: 'var(--color-text)', overflowWrap: 'break-word' }}>
-                    {book.title}
-                  </h4>
-                  <p className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>
-                    {book.author}
-                  </p>
                 </button>
 
-                {/* しおりボタン — 常に表示、bookmarked/not の視覚区別 */}
-                <div className="mt-1.5 flex gap-1.5">
+                {/* しおりボタン — 常に表示、はさむ/済の明確な視覚区別 */}
+                <div className="mt-1.5">
                   {!isBookmarked ? (
                     <button onClick={(e) => { e.stopPropagation(); onBookmark(book); }}
-                      className="flex-1 text-[10px] py-1.5 rounded-lg font-semibold transition-all"
-                      style={{ color: 'var(--color-text-dim)', background: 'rgba(0,0,0,0.03)', border: '1px solid var(--color-border)' }}>
-                      🔖 しおり
+                      className="w-full text-[10px] py-1.5 rounded-lg font-semibold transition-all"
+                      style={{ color: 'var(--color-text-dim)', background: 'rgba(0,0,0,0.03)', border: '1px dashed var(--color-border)' }}>
+                      🔖 しおりをはさむ
                     </button>
                   ) : (
                     <button onClick={(e) => { e.stopPropagation(); onRemoveBookmark(book); }}
-                      className="flex-1 text-[10px] py-1.5 rounded-lg font-bold transition-all"
-                      style={{ color: '#fff', background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', border: '1px solid transparent' }}>
-                      ✅ しおり済
+                      className="w-full text-[10px] py-1.5 rounded-lg font-bold transition-all"
+                      style={{ color: '#fff', background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', border: '1px solid transparent', boxShadow: '0 2px 6px rgba(232,101,90,0.2)' }}>
+                      ✅ しおり済み
                     </button>
                   )}
-                  <button onClick={(e) => { e.stopPropagation(); onHide(book); }}
-                    className="text-[10px] py-1.5 px-2 rounded-lg transition-all"
-                    style={{ color: 'var(--color-text-dim)', background: 'rgba(0,0,0,0.03)', border: '1px solid var(--color-border)' }}
-                    title="そっと本棚から外す">
-                    ✕
-                  </button>
                 </div>
 
                 {/* 購入リンク */}
