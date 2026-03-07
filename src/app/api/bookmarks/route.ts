@@ -36,6 +36,7 @@ export async function POST(req: Request) {
       book_letter: book.letter || '',
       book_thumbnail: book.thumbnail || '',
       book_amazon_url: book.amazonUrl || '',
+      book_rakuten_url: book.rakutenUrl || '',
     }, { onConflict: 'user_id,book_title,book_author' });
 
     if (error) {
