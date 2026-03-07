@@ -9,6 +9,7 @@ import { track, startTimer } from '@/lib/analytics';
 interface BookResult {
   title: string;
   author: string;
+  isbn?: string;
   label: string;
   summary: string;
   letter: string;
