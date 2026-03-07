@@ -237,7 +237,16 @@ export async function POST(req: Request) {
             .order('created_at', { ascending: false })
             .limit(5);
           if (profiles && profiles.length > 0) {
-            pastContext = `\n\n## 過去の心のカルテ\n${profiles.map((p, i) => `[${i + 1}] ${new Date(p.created_at).toLocaleDateString('ja-JP')}:\n${p.summary}`).join('\n\n')}`;
+            pastContext = `\n\n## 過去の心のカルテ（あなたはこのユーザーを見守り続ける専属の編集者です）
+以下は過去のセッションから読み取ったユーザーの心の記録です。
+
+${profiles.map((p, i) => `[${i + 1}] ${new Date(p.created_at).toLocaleDateString('ja-JP')}:\n${p.summary}`).join('\n\n')}
+
+【継続カウンセリング指示】
+- 手紙の冒頭で、過去のカルテと今回のnoteを比較し、「時間経過や関心の変化」に優しく触れてください
+- 例：「前回は〇〇について立ち止まっておられましたが、今日は少し視線が変わりましたね」「あの時の言葉を経て、今があるのですね」
+- ただし「解決した」等と勝手に断定せず、どんな話題の転換も肯定的に受け止める表現にすること
+- 初回利用の場合（カルテが0件）はこの指示を無視してください`;
           }
         }
       } catch (e) {

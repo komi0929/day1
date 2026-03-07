@@ -726,3 +726,114 @@ input, textarea, button {
   66% { transform: translate(-1%, -1.5%) rotate(-0.3deg); }
   100% { transform: translate(-2%, 1%) rotate(0.2deg); }
 }
+
+/* ═══════════════════════════════════════════════
+   ライブラリ タブ
+   ═══════════════════════════════════════════════ */
+.library-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.library-tab {
+  flex: 1;
+  padding: 12px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.library-tab:hover {
+  color: var(--color-text);
+}
+
+.library-tab-active {
+  color: var(--g-coral);
+  border-bottom-color: var(--g-coral);
+}
+
+.library-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: rgba(232, 101, 90, 0.12);
+  color: var(--g-coral);
+  margin-left: 6px;
+}
+
+/* ═══════════════════════════════════════════════
+   ブックマーク グリッド
+   ═══════════════════════════════════════════════ */
+.library-bookmark-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 20px;
+}
+
+.library-bookmark-card {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.library-bookmark-card:hover {
+  transform: translateY(-2px);
+}
+
+.library-bookmark-cover {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.library-bookmark-placeholder {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.library-bookmark-placeholder span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.library-bookmark-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-top: 8px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.library-bookmark-author {
+  font-size: 11px;
+  color: var(--color-text-dim);
+  margin-top: 2px;
+}

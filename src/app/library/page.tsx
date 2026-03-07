@@ -23,6 +23,7 @@ interface BookData {
   letter?: string;
   thumbnail?: string;
   amazonUrl?: string;
+  rakutenUrl?: string;
 }
 
 interface Bookmark {
@@ -34,6 +35,7 @@ interface Bookmark {
   book_letter: string;
   book_thumbnail: string;
   book_amazon_url: string;
+  book_rakuten_url?: string;
   created_at: string;
   selection_id?: string;
 }
@@ -46,7 +48,7 @@ export default function LibraryPage() {
   const [selections, setSelections] = useState<Selection[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showBookmarkedOnly, setShowBookmarkedOnly] = useState(false);
+  const [activeTab, setActiveTab] = useState<'timeline' | 'bookmarks'>('timeline');
   const [hiddenBooks, setHiddenBooks] = useState<Set<string>>(new Set());
   const [modalBook, setModalBook] = useState<{ book: BookData; fragment?: string; date?: string } | null>(null);
   const migratedRef = useRef(false);
@@ -196,14 +198,6 @@ export default function LibraryPage() {
     return bookmarks.find(b => b.book_title === book.title && b.book_author === book.author);
   };
 
-  // ─── Filter selections ───
-  const filteredSelections = showBookmarkedOnly
-    ? selections.filter(sel =>
-        sel.books?.some(book =>
-          bookmarkedTitles.has(book.title) && !hiddenBooks.has(`${book.title}::${book.author}`)
-        )
-      )
-    : selections;
 
   // ─── Not logged in ───
   if (!authLoading && !user) {
@@ -262,48 +256,85 @@ export default function LibraryPage() {
             </Link>
           </div>
 
-          {/* Bookmark filter toggle */}
-          <div className="mb-8">
+          {/* Tabs */}
+          <div className="library-tabs mb-8">
             <button
-              onClick={() => setShowBookmarkedOnly(!showBookmarkedOnly)}
-              className="px-5 py-2.5 rounded-full text-xs font-bold transition-all"
-              style={showBookmarkedOnly
-                ? { background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', color: '#fff', boxShadow: '0 2px 8px rgba(232, 101, 90, 0.25)' }
-                : { color: 'var(--color-text-dim)', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }
-              }
+              onClick={() => setActiveTab('timeline')}
+              className={`library-tab ${activeTab === 'timeline' ? 'library-tab-active' : ''}`}
             >
-              🔖 しおりをはさんだ本だけ
+              これまでに綴った言葉たち
             </button>
-            {bookmarks.length > 0 && (
-              <span className="text-[10px] ml-3" style={{ color: 'var(--color-text-dim)' }}>
-                {bookmarks.length}冊のしおり
-              </span>
-            )}
+            <button
+              onClick={() => setActiveTab('bookmarks')}
+              className={`library-tab ${activeTab === 'bookmarks' ? 'library-tab-active' : ''}`}
+            >
+              いつか読む本 {bookmarks.length > 0 && <span className="library-tab-badge">{bookmarks.length}</span>}
+            </button>
           </div>
 
-          {/* Timeline */}
-          {filteredSelections.length === 0 ? (
-            <EmptyState />
+          {/* Tab Content */}
+          {activeTab === 'timeline' ? (
+            /* ─── タブ1: これまでに綴った言葉たち（タイムライン） ─── */
+            selections.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <div className="space-y-10">
+                {selections.map(sel => (
+                  <TimelineBlock
+                    key={sel.id}
+                    selection={sel}
+                    bookmarkedTitles={bookmarkedTitles}
+                    hiddenBooks={hiddenBooks}
+                    showBookmarkedOnly={false}
+                    onBookmark={handleBookmark}
+                    onRemoveBookmark={handleRemoveBookmark}
+                    onHide={handleHideBook}
+                    onOpenModal={(book) => {
+                      const sel2 = selections.find(s => s.books?.some(b => b.title === book.title));
+                      setModalBook({
+                        book,
+                        fragment: sel2?.fragments?.[0],
+                        date: sel2?.created_at,
+                      });
+                    }}
+                  />
+                ))}
+              </div>
+            )
           ) : (
-            <div className="space-y-10">
-              {filteredSelections.map(sel => (
-                <TimelineBlock
-                  key={sel.id}
-                  selection={sel}
-                  bookmarkedTitles={bookmarkedTitles}
-                  hiddenBooks={hiddenBooks}
-                  showBookmarkedOnly={showBookmarkedOnly}
-                  onBookmark={handleBookmark}
-                  onRemoveBookmark={handleRemoveBookmark}
-                  onHide={handleHideBook}
-                  onOpenModal={(book) => setModalBook({
-                    book,
-                    fragment: sel.fragments?.[0],
-                    date: sel.created_at,
-                  })}
-                />
-              ))}
-            </div>
+            /* ─── タブ2: いつか読む本（ブックマーク グリッド） ─── */
+            bookmarks.length === 0 ? (
+              <EmptyState type="bookmarks" />
+            ) : (
+              <div className="library-bookmark-grid">
+                {bookmarks.map(bm => (
+                  <article key={bm.id} className="library-bookmark-card" onClick={() => {
+                    const bookData: BookData = {
+                      title: bm.book_title,
+                      author: bm.book_author,
+                      label: bm.book_label,
+                      summary: bm.book_summary,
+                      letter: bm.book_letter,
+                      thumbnail: bm.book_thumbnail,
+                      amazonUrl: bm.book_amazon_url,
+                      rakutenUrl: bm.book_rakuten_url, // Added rakutenUrl
+                    };
+                    setModalBook({ book: bookData });
+                  }}>
+                    {bm.book_thumbnail ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={bm.book_thumbnail} alt={bm.book_title} className="library-bookmark-cover" loading="lazy" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="library-bookmark-placeholder">
+                        <span>{bm.book_title}</span>
+                      </div>
+                    )}
+                    <h4 className="library-bookmark-title">{bm.book_title}</h4>
+                    <p className="library-bookmark-author">{bm.book_author}</p>
+                  </article>
+                ))}
+              </div>
+            )
           )}
         </div>
       </div>
@@ -748,14 +779,16 @@ function AuthForm() {
 /* ═══════════════════════════════════════════════
    Empty State
    ═══════════════════════════════════════════════ */
-function EmptyState() {
+function EmptyState({ type = 'timeline' }: { type?: 'timeline' | 'bookmarks' }) {
   return (
     <div className="py-20 text-center">
       <p className="text-sm leading-loose max-w-xs mx-auto"
-        style={{ color: 'var(--color-text-dim)', fontStyle: 'italic' }}>
-        まだここには何もありませんが、<br />
-        あなたが言葉を紡ぐたび、<br />
-        ここはあなただけの特別な場所になっていきます。
+        style={{ color: 'var(--color-text-dim)' }}>
+        {type === 'bookmarks' ? (
+          <>まだしおりをはさんだ本はありませんが、<br />気になった本に出会ったら、そっとしおりをはさんでみてください。</>
+        ) : (
+          <>まだここには何もありませんが、<br />あなたが言葉を紡ぐたび、<br />ここはあなただけの特別な場所になっていきます。</>
+        )}
       </p>
     </div>
   );
