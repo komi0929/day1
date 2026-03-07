@@ -28,14 +28,14 @@ interface BookData {
 
 interface Bookmark {
   id: string;
-  book_title: string;
-  book_author: string;
-  book_label: string;
-  book_summary: string;
-  book_letter: string;
-  book_thumbnail: string;
-  book_amazon_url: string;
-  book_rakuten_url?: string;
+  title: string;         // DB: title
+  author: string;        // DB: author
+  label: string;         // DB: label
+  summary: string;       // DB: summary
+  letter: string;        // DB: letter
+  image_url: string;     // DB: image_url
+  url: string;           // DB: url (= amazonUrl)
+  rakuten_url?: string;  // DB: rakuten_url
   created_at: string;
   selection_id?: string;
 }
@@ -202,7 +202,7 @@ export default function LibraryPage() {
   }, []);
 
   // ─── Actions ───
-  const bookmarkedTitles = new Set(bookmarks.map(b => b.book_title));
+  const bookmarkedTitles = new Set(bookmarks.map(b => b.title));
 
   const handleBookmark = async (book: BookData) => {
     if (!session?.access_token) return;
@@ -211,14 +211,14 @@ export default function LibraryPage() {
       ...prev,
       {
         id: `temp-${Date.now()}`,
-        book_title: book.title,
-        book_author: book.author,
-        book_label: book.label || '',
-        book_summary: book.summary || '',
-        book_letter: book.letter || '',
-        book_thumbnail: book.thumbnail || '',
-        book_amazon_url: book.amazonUrl || '',
-        book_rakuten_url: book.rakutenUrl || '',
+        title: book.title,
+        author: book.author,
+        label: book.label || '',
+        summary: book.summary || '',
+        letter: book.letter || '',
+        image_url: book.thumbnail || '',
+        url: book.amazonUrl || '',
+        rakuten_url: book.rakutenUrl || '',
         created_at: new Date().toISOString(),
       }
     ]);
@@ -241,7 +241,7 @@ export default function LibraryPage() {
   const handleRemoveBookmark = async (book: BookData) => {
     if (!session?.access_token) return;
     // Optimistic update
-    setBookmarks(prev => prev.filter(b => b.book_title !== book.title || b.book_author !== book.author));
+    setBookmarks(prev => prev.filter(b => b.title !== book.title || b.author !== book.author));
     try {
       await fetch('/api/bookmarks', {
         method: 'DELETE',
@@ -264,7 +264,7 @@ export default function LibraryPage() {
   };
 
   const getBookmarkForBook = (book: BookData): Bookmark | undefined => {
-    return bookmarks.find(b => b.book_title === book.title && b.book_author === book.author);
+    return bookmarks.find(b => b.title === book.title && b.author === book.author);
   };
 
 
@@ -425,27 +425,27 @@ export default function LibraryPage() {
                 {bookmarks.map(bm => (
                   <article key={bm.id} className="library-bookmark-card" onClick={() => {
                     const bookData: BookData = {
-                      title: bm.book_title,
-                      author: bm.book_author,
-                      label: bm.book_label,
-                      summary: bm.book_summary,
-                      letter: bm.book_letter,
-                      thumbnail: bm.book_thumbnail,
-                      amazonUrl: bm.book_amazon_url,
-                      rakutenUrl: bm.book_rakuten_url, // Added rakutenUrl
+                      title: bm.title,
+                      author: bm.author,
+                      label: bm.label,
+                      summary: bm.summary,
+                      letter: bm.letter,
+                      thumbnail: bm.image_url,
+                      amazonUrl: bm.url,
+                      rakutenUrl: bm.rakuten_url,
                     };
                     setModalBook({ book: bookData });
                   }}>
-                    {bm.book_thumbnail ? (
+                    {bm.image_url ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={bm.book_thumbnail} alt={bm.book_title} className="library-bookmark-cover" loading="lazy" referrerPolicy="no-referrer" />
+                      <img src={bm.image_url} alt={bm.title} className="library-bookmark-cover" loading="lazy" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="library-bookmark-placeholder">
-                        <span>{bm.book_title}</span>
+                        <span>{bm.title}</span>
                       </div>
                     )}
-                    <h4 className="library-bookmark-title">{bm.book_title}</h4>
-                    <p className="library-bookmark-author">{bm.book_author}</p>
+                    <h4 className="library-bookmark-title">{bm.title}</h4>
+                    <p className="library-bookmark-author">{bm.author}</p>
                   </article>
                 ))}
               </div>
@@ -630,10 +630,10 @@ function BookDetailModal({
   onRemoveBookmark: () => void;
 }) {
   // Use bookmark data if available (has letter from DB), otherwise use book data
-  const letter = bookmark?.book_letter || book.letter || '';
-  const summary = bookmark?.book_summary || book.summary || '';
-  const amazonUrl = bookmark?.book_amazon_url || book.amazonUrl || '';
-  const rakutenUrl = bookmark?.book_rakuten_url || book.rakutenUrl || '';
+  const letter = bookmark?.letter || book.letter || '';
+  const summary = bookmark?.summary || book.summary || '';
+  const amazonUrl = bookmark?.url || book.amazonUrl || '';
+  const rakutenUrl = bookmark?.rakuten_url || book.rakutenUrl || '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"

@@ -24,19 +24,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'INVALID_BOOK' }, { status: 400 });
     }
 
-    // upsert: ユニーク制約 (user_id, book_title, book_author) で重複を防止
+    // 実際のDBカラム名に合わせたupsert
     const { error } = await supabase.from('bookmarks').upsert({
       user_id: user.id,
-      selection_id: selectionId || null,
-      book_title: book.title,
-      book_author: book.author,
-      book_label: book.label || '',
-      book_summary: book.summary || '',
-      book_letter: book.letter || '',
-      book_thumbnail: book.thumbnail || '',
-      book_amazon_url: book.amazonUrl || '',
-      book_rakuten_url: book.rakutenUrl || '',
-    }, { onConflict: 'user_id,book_title,book_author' });
+      title: book.title,           // DB: title (text, NOT NULL)
+      author: book.author,         // DB: author (text, DEFAULT '')
+      url: book.amazonUrl || '',   // DB: url (text, NOT NULL → DEFAULT '')
+      image_url: book.thumbnail || '',  // DB: image_url (text)
+      label: book.label || '',     // DB: label (text, DEFAULT '')
+      summary: book.summary || '', // DB: summary (text, DEFAULT '')
+      letter: book.letter || '',   // DB: letter (text, DEFAULT '')
+      rakuten_url: book.rakutenUrl || '', // DB: rakuten_url (text, DEFAULT '')
+      selection_id: selectionId || null,  // DB: selection_id (uuid)
+      status: 'active',            // DB: status (text, NOT NULL)
+      ai_processing_status: 'completed', // DB: ai_processing_status (text, NOT NULL)
+    }, { onConflict: 'user_id,title,author' });
 
     if (error) {
       console.error('Bookmark upsert error:', JSON.stringify(error));
@@ -70,11 +72,12 @@ export async function DELETE(req: Request) {
 
     const { bookTitle, bookAuthor } = await req.json();
 
+    // 実際のDBカラム名で削除
     const { error } = await supabase.from('bookmarks')
       .delete()
       .eq('user_id', user.id)
-      .eq('book_title', bookTitle)
-      .eq('book_author', bookAuthor);
+      .eq('title', bookTitle)
+      .eq('author', bookAuthor);
 
     if (error) {
       console.error('Bookmark delete error:', error);
