@@ -155,22 +155,11 @@ async function getBookCover(isbn: string, title: string, author: string): Promis
         const data = await res.json();
         const items = data?.items;
         if (items && items.length > 0) {
-          let firstThumbUrl = '';
-          let firstThumbTitle = '';
           for (const item of items) {
             const vi = item?.volumeInfo;
             const apiTitle = vi?.title || '';
-            const matched = softTitleMatch(title, apiTitle);
-            if (!matched) {
+            if (!softTitleMatch(title, apiTitle)) {
               console.log(`[Cover] Stage3/4 softMatch skip: "${title}" ≠ "${apiTitle}"`);
-              // 最初のサムネイルを記録（フォールバック用）
-              if (!firstThumbUrl) {
-                const raw = vi?.imageLinks?.thumbnail || vi?.imageLinks?.smallThumbnail;
-                if (raw) {
-                  firstThumbUrl = raw.replace('http://', 'https://').replace('&edge=curl', '');
-                  firstThumbTitle = apiTitle;
-                }
-              }
               continue;
             }
 
@@ -195,19 +184,13 @@ async function getBookCover(isbn: string, title: string, author: string): Promis
               }
             }
 
-            // Stage 4: Google Booksサムネイル
+            // Stage 4: Google Booksサムネイル（タイトル照合済み）
             const rawUrl = vi?.imageLinks?.thumbnail || vi?.imageLinks?.smallThumbnail;
             if (rawUrl) {
               const url = rawUrl.replace('http://', 'https://').replace('&edge=curl', '');
               console.log(`[Cover] Stage4 thumbnail: "${title}" → "${apiTitle}" → ${url}`);
               return url;
             }
-          }
-          // Stage 4b: softMatchで一致しなくても、検索結果の最初のサムネイルを使用
-          // （Google Books検索クエリが「タイトル 著者」なので、最初の結果は通常正しい）
-          if (firstThumbUrl) {
-            console.log(`[Cover] Stage4b first-result fallback: "${title}" → "${firstThumbTitle}" → ${firstThumbUrl}`);
-            return firstThumbUrl;
           }
         } else {
           console.log(`[Cover] Stage3/4 no results from GoogleBooks for "${title}"`);
