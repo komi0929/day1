@@ -1,5 +1,13 @@
 # Changelog
 
+## [2026-03-07] — 表紙画像取得: 5段階カスケード + 2段階タイトル照合
+
+### 🔧 Architecture Overhaul (表紙画像100%正確化)
+- **5段階カスケード**: AI提供ISBN→Google Books ISBN検索(厳格照合) → openBD ISBN(厳格照合) → Google Booksタイトル検索→ISBN→openBDカバー(寛容照合) → Google Booksサムネイル(寛容照合) → CSSプレースホルダー
+- **2段階タイトル照合ガード**: `strictTitleMatch`(ISBN検索で間違ったISBN→間違った画像を防止) + `softTitleMatch`(タイトル検索で取得率MAX化)
+- **Google Books タイトル検索→ISBN取得→openBDカバー**: AIのISBNに依存せず、サーバーサイドでISBNを自力取得
+- **間違った画像は構造的に表示不可能**: 全段階でタイトル照合ガード付き
+
 ## [2026-03-07] — 表紙画像: AI生成ISBN廃止 → NDL検索で正しいISBN取得
 
 ### 🐛 Critical Fix (表紙表示率を大幅改善)
