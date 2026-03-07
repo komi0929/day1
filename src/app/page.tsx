@@ -691,45 +691,37 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
       <h3 className="book-title">{book.title}</h3>
       <p className="book-author">{book.author}</p>
 
-      {/* Bookmark */}
-      <button onClick={onBookmark} className="book-expand-btn mb-2"
-        style={isBookmarked ? { color: 'var(--g-coral)', borderColor: 'rgba(232,101,90,0.3)' } : {}}>
-        {isBookmarked ? '✅ しおりをはさみました' : '🔖 しおりをはさむ'}
-      </button>
-
-      {/* "この本について" — always visible */}
-      <div className="book-detail-section mt-3">
-        <h4 className="book-detail-label">この本について</h4>
-        <p className="book-detail-text">{book.summary}</p>
+      {/* 💌 あなたへのお手紙（全文展開・主役） */}
+      <div className="book-detail-section book-letter mt-3">
+        <h4 className="book-detail-label">💌 あなたへのお手紙</h4>
+        <p className="book-letter-text">{book.letter}</p>
       </div>
 
-      {/* Letter toggle */}
-      <button onClick={() => { track('letter_open', { bookTitle: book.title }); onToggleLetter(); }} className="book-expand-btn mt-3">
-        {isLetterExpanded ? '閉じる' : 'お手紙を読む'}
-        <span className="expand-arrow" style={{ transform: isLetterExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
-      </button>
-
-      {isLetterExpanded && (
-        <div className="book-details fade-in-up">
-          <div className="book-detail-section book-letter">
-            <h4 className="book-detail-label">📝 あなたへの手紙</h4>
-            <p className="book-letter-text">{book.letter}</p>
-          </div>
-        </div>
-      )}
-
-      <div className="book-purchase-links">
+      {/* 🛒 購入リンク（プライマリボタン） */}
+      <div className="book-purchase-links mt-3">
+        <a href={book.amazonUrl} target="_blank" rel="noopener noreferrer" className="book-purchase-btn book-amazon-btn"
+          onClick={() => track('amazon_click', { bookTitle: book.title })}>
+          Amazonで見る →
+        </a>
         {book.rakutenUrl && (
-          <a href={book.rakutenUrl} target="_blank" rel="noopener noreferrer" className="book-rakuten-link"
+          <a href={book.rakutenUrl} target="_blank" rel="noopener noreferrer" className="book-purchase-btn book-rakuten-btn"
             onClick={() => track('rakuten_click', { bookTitle: book.title })}>
             楽天ブックスで見る →
           </a>
         )}
-        <a href={book.amazonUrl} target="_blank" rel="noopener noreferrer" className="book-amazon-link"
-          onClick={() => track('amazon_click', { bookTitle: book.title })}>
-          Amazonで見る →
-        </a>
       </div>
+
+      {/* 📖 この本について（補足・控えめ） */}
+      <div className="book-detail-section book-summary-section mt-3">
+        <h4 className="book-detail-label">📖 この本について</h4>
+        <p className="book-detail-text">{book.summary}</p>
+      </div>
+
+      {/* 🔖 しおりをはさむ（セカンダリ・最下部） */}
+      <button onClick={onBookmark} className="book-bookmark-btn mt-3"
+        style={isBookmarked ? { color: 'var(--g-coral)', borderColor: 'rgba(232,101,90,0.3)' } : {}}>
+        {isBookmarked ? '✅ しおりをはさみました' : '🔖 しおりをはさむ'}
+      </button>
     </article>
   );
 }
