@@ -17,6 +17,10 @@ export const metadata: Metadata = {
   title: "compass | あなたのnoteから「今読んでほしい一冊」をお届けします",
   description: "compassは、あなたの書いたnoteから「今読んでほしい一冊」をおすすめするアプリ。URLをひとつ入れるだけで、悩みや願いを読み解き、あなたの背中をそっと押してくれる本を、お手紙とともにお届けします。",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/favicon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -28,6 +32,20 @@ export const metadata: Metadata = {
     siteName: "compass",
     type: "website",
     locale: "ja_JP",
+    images: [
+      {
+        url: "/ogp.png",
+        width: 1200,
+        height: 630,
+        alt: "compass — あなたの書いたnoteから「今読んでほしい一冊」をおすすめするアプリ",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "compass | あなたのnoteから「今読んでほしい一冊」をお届けします",
+    description: "あなたの書いたnoteから「今読んでほしい一冊」をおすすめするアプリ。",
+    images: ["/ogp.png"],
   },
 };
 
@@ -46,9 +64,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-      </head>
+      <head />
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
