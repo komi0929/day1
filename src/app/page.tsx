@@ -425,24 +425,9 @@ export default function Home() {
         </main>
       )}
 
-      {/* ═══ WAITING PHASE ═══ */}
+      {/* ═══ WAITING PHASE — 段階的フィードバックで知覚速度向上 ═══ */}
       {phase === 'waiting' && (
-        <main className="min-h-dvh flex items-center justify-center px-6 pt-14">
-          <div className="max-w-lg w-full text-center">
-            <div className="mb-8">
-              <div className="book-pulse mx-auto mb-8"><div className="book-spine" /></div>
-              <p className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-muted)' }}>あなたのための一冊をじっくり探しています</p>
-              <p className="text-[11px]" style={{ color: 'var(--color-text-dim)' }}>30秒ほど、ゆっくりとお待ちください</p>
-            </div>
-            <div className="fragment-container">
-              {fragments.length > 0 && (
-                <p className={`fragment-text ${fragmentVisible ? 'fragment-visible' : 'fragment-hidden'}`}>
-                  「{fragments[currentFragment]}」
-                </p>
-              )}
-            </div>
-          </div>
-        </main>
+        <WaitingScreen fragments={fragments} currentFragment={currentFragment} fragmentVisible={fragmentVisible} />
       )}
 
       {/* ═══ RESULTS PHASE ═══ */}
@@ -753,5 +738,82 @@ function BookCard({ book, isLetterExpanded, onToggleLetter, isBookmarked, onBook
         {isBookmarked ? '✅ しおりをはさみました' : '🔖 しおりをはさむ'}
       </button>
     </article>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   WaitingScreen — 段階的フィードバックで知覚速度向上
+   ═══════════════════════════════════════════════ */
+
+const WAIT_STAGES = [
+  { message: 'あなたの言葉をじっくり読んでいます', sub: 'noteに込められた想いを読み解いています' },
+  { message: 'あなたの心の深いところを探っています', sub: '行間にある願いや悩みに耳を傾けています' },
+  { message: 'ぴったりの本を書棚から探しています', sub: '言葉にならなかった想いに応える一冊を選んでいます' },
+  { message: 'あなたへのお手紙を綴っています', sub: 'この本をおすすめする理由を、手紙にしたためています' },
+  { message: '最後の仕上げをしています', sub: 'あなたのための選書を最終確認しています' },
+];
+
+function WaitingScreen({ fragments, currentFragment, fragmentVisible }: {
+  fragments: string[];
+  currentFragment: number;
+  fragmentVisible: boolean;
+}) {
+  const [elapsed, setElapsed] = useState(0);
+  const [stageIdx, setStageIdx] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const stageTimer = setInterval(() => {
+      setStageIdx(prev => Math.min(prev + 1, WAIT_STAGES.length - 1));
+    }, 8000);
+    return () => clearInterval(stageTimer);
+  }, []);
+
+  const stage = WAIT_STAGES[stageIdx];
+  // 非線形プログレス: 最初は速く進み、後半はゆっくり（知覚的に処理が進んでいるように見せる）
+  const progress = Math.min(92, 100 * (1 - Math.exp(-elapsed / 25)));
+
+  return (
+    <main className="min-h-dvh flex items-center justify-center px-6 pt-14">
+      <div className="max-w-lg w-full text-center">
+        <div className="mb-8">
+          <div className="book-pulse mx-auto mb-8"><div className="book-spine" /></div>
+          <p className="text-sm font-medium mb-1 transition-all duration-700" style={{ color: 'var(--color-text-muted)' }}>
+            {stage.message}
+          </p>
+          <p className="text-[11px] transition-all duration-700" style={{ color: 'var(--color-text-dim)' }}>
+            {stage.sub}
+          </p>
+        </div>
+
+        {/* プログレスバー */}
+        <div className="mx-auto max-w-xs mb-6">
+          <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(44, 37, 32, 0.06)' }}>
+            <div
+              className="h-full rounded-full transition-all duration-1000 ease-out"
+              style={{
+                width: `${progress}%`,
+                background: 'linear-gradient(90deg, var(--g-coral), var(--g-peach))',
+              }}
+            />
+          </div>
+          <p className="text-[10px] mt-2 tabular-nums" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>
+            {elapsed}秒経過
+          </p>
+        </div>
+
+        <div className="fragment-container">
+          {fragments.length > 0 && (
+            <p className={`fragment-text ${fragmentVisible ? 'fragment-visible' : 'fragment-hidden'}`}>
+              「{fragments[currentFragment]}」
+            </p>
+          )}
+        </div>
+      </div>
+    </main>
   );
 }

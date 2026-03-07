@@ -64,7 +64,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <head />
+      <head>
+        {/* 接続プリウォーム: DNS+TCP+TLS handshakeを事前に完了 (~200-400ms短縮) */}
+        <link rel="preconnect" href="https://app.rakuten.co.jp" />
+        <link rel="preconnect" href="https://thumbnail.image.rakuten.co.jp" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://www.googleapis.com" />
+        <link rel="preconnect" href="https://books.google.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://app.rakuten.co.jp" />
+        <link rel="dns-prefetch" href="https://thumbnail.image.rakuten.co.jp" />
+        <link rel="dns-prefetch" href="https://www.googleapis.com" />
+        <link rel="dns-prefetch" href="https://books.google.com" />
+        <link rel="dns-prefetch" href="https://note.com" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
