@@ -115,13 +115,12 @@ async function searchBookCover(title: string, author: string): Promise<string> {
 
             if (!isTitleMatch(title, foundTitle)) continue;
 
-            // サムネイルがあれば返す（高画質化）
+            // サムネイルがあれば返す（edge=curlのみ除去）
             const imageLinks = vi?.imageLinks;
             const rawUrl = imageLinks?.thumbnail || imageLinks?.smallThumbnail;
             if (rawUrl) {
               const url = rawUrl
                 .replace('http://', 'https://')
-                .replace(/zoom=\d/, 'zoom=0')
                 .replace('&edge=curl', '');
               console.log(`[Cover] GoogleBooks match "${title}" → "${foundTitle}": ${url}`);
               return url;
@@ -133,7 +132,7 @@ async function searchBookCover(title: string, author: string): Promise<string> {
             }
           }
 
-          // Pass 2: タイトル不一致でもISBNだけは取得（openBDフォールバック用）
+          // Pass 2: タイトル不一致でもISBN取得。サムネイルは使わない（誤画像を防止）
           if (!isbn13) {
             for (const item of items) {
               const vi = item?.volumeInfo;
