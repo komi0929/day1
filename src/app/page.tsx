@@ -325,7 +325,7 @@ export default function Home() {
           {user && (
             <Link href="/library" className="text-sm font-bold px-5 py-2.5 rounded-full transition-all active:scale-[0.97]"
               style={{ color: '#fff', background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', boxShadow: '0 2px 8px rgba(232, 101, 90, 0.25)' }}>
-              📚 わたしの本棚
+              わたしの本棚
             </Link>
           )}
         </header>
@@ -339,7 +339,7 @@ export default function Home() {
             <div className="flex justify-end px-5 pt-4">
               <Link href="/library" className="text-sm font-bold px-5 py-2.5 rounded-full transition-all active:scale-[0.97]"
                 style={{ color: '#fff', background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', boxShadow: '0 2px 8px rgba(232, 101, 90, 0.25)' }}>
-                📚 わたしの本棚
+                わたしの本棚
               </Link>
             </div>
           )}
@@ -473,18 +473,18 @@ export default function Home() {
 
           {/* ─── Batch navigation ─── */}
           <div className="px-6 mt-6 max-w-lg mx-auto space-y-3">
-            {/* Batch prev/next — 既に閲覧済みバッチ間のナビ */}
-            {bookBatches.length > 1 && (
+            {/* Batch prev/next — maxViewedBatch >= 1 のとき（2バッチ目以降を見たことがある場合）のみ表示 */}
+            {maxViewedBatch >= 1 && (
               <div className="flex items-center justify-center gap-4">
                 <button onClick={() => { setCurrentBatch(prev => prev - 1); setCurrentCard(0); setExpandedLetter(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   disabled={!hasPrevBatch} className="btn-ghost px-4 py-2 text-sm" style={{ opacity: hasPrevBatch ? 1 : 0.3 }}>
                   ← 前の3冊
                 </button>
                 <span className="text-xs font-bold tracking-wider" style={{ color: 'var(--color-text-dim)' }}>
-                  {currentBatch + 1} / {bookBatches.length}
+                  {currentBatch + 1} / {Math.max(bookBatches.length, maxViewedBatch + 1)}
                 </span>
                 <button onClick={() => { setCurrentBatch(prev => prev + 1); setCurrentCard(0); setExpandedLetter(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  disabled={!hasNextBatch} className="btn-ghost px-4 py-2 text-sm" style={{ opacity: hasNextBatch ? 1 : 0.3 }}>
+                  disabled={currentBatch >= maxViewedBatch} className="btn-ghost px-4 py-2 text-sm" style={{ opacity: currentBatch < maxViewedBatch ? 1 : 0.3 }}>
                   次の3冊 →
                 </button>
               </div>
@@ -496,25 +496,21 @@ export default function Home() {
                 id="load-more-button"
                 onClick={() => {
                   const nextIdx = maxViewedBatch + 1;
-                  // 裏で既に次バッチが取得済みか確認
                   if (bookBatches.length > nextIdx) {
-                    // 既にある → 即ナビゲート
                     setCurrentBatch(nextIdx);
                     setMaxViewedBatch(nextIdx);
                     setCurrentCard(0);
                     setExpandedLetter(null);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   } else if (!searchingMore) {
-                    // まだない & 検索中でもない → 検索開始（foreground）
                     loadNextBatch(false);
                   }
-                  // searchingMore=true の場合はボタンが検索中表示になりクリック無効
                 }}
                 disabled={searchingMore}
                 className="btn-ghost w-full"
               >
                 {searchingMore ? (
-                  <span className="analyzing-pulse">📚 {(maxViewedBatch + 1) * 3 + 1}冊目以降を探しています…</span>
+                  <span className="analyzing-pulse">{(maxViewedBatch + 1) * 3 + 1}冊目以降を探しています…</span>
                 ) : (
                   `他の本を探す（${(maxViewedBatch + 1) * 3 + 1}冊目〜） →`
                 )}
@@ -530,7 +526,7 @@ export default function Home() {
                 {user ? (
                   <div className="space-y-3">
                     <Link href="/library" className="btn-primary block w-full max-w-xs mx-auto text-center py-3">
-                      📚 本棚を見にいく
+                      本棚を見にいく
                     </Link>
                     <button id="restart-button" onClick={doReset} className="btn-ghost w-full max-w-xs mx-auto">
                       別のnoteで本を探す
@@ -827,9 +823,7 @@ function WaitingScreen({ fragments, currentFragment, fragmentVisible }: {
               }}
             />
           </div>
-          <p className="text-[10px] mt-2 tabular-nums" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>
-            {elapsed}秒経過
-          </p>
+
         </div>
 
         <div className="fragment-container">
