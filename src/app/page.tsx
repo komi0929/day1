@@ -35,6 +35,7 @@ export default function Home() {
   const [bookBatches, setBookBatches] = useState<BookResult[][]>([]); // Array of 3-book batches
   const [fragments, setFragments] = useState<string[]>([]);
   const [currentBatch, setCurrentBatch] = useState(0); // Which batch to show
+  const [maxViewedBatch, setMaxViewedBatch] = useState(0); // ユーザーが手動で到達した最大バッチ
   const [searchingMore, setSearchingMore] = useState(false); // Is phase 2/3 loading?
   const [maxBatches] = useState(3); // Max 3 batches = 9 books
   const [expandedLetter, setExpandedLetter] = useState<number | null>(null);
@@ -130,6 +131,7 @@ export default function Home() {
     noteDataRef.current = { body, title };
     setBookBatches([]);
     setCurrentBatch(0);
+    setMaxViewedBatch(0);
     setCurrentCard(0);
 
     track('recommend_start', { phase: 1, excludeCount: 0 });
@@ -172,6 +174,7 @@ export default function Home() {
         if (!isBackgroundPreload) {
           // Auto-navigate only if user actively clicked
           setCurrentBatch(newBatches.length - 1);
+          setMaxViewedBatch(newBatches.length - 1);
           setCurrentCard(0);
           setExpandedLetter(null);
         }
@@ -462,41 +465,56 @@ export default function Home() {
 
           {/* ─── Batch navigation ─── */}
           <div className="px-6 mt-6 max-w-lg mx-auto space-y-3">
-            {/* Batch prev/next */}
-            <div className="flex items-center justify-center gap-4">
-              <button onClick={() => { setCurrentBatch(prev => prev - 1); setCurrentCard(0); setExpandedLetter(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                disabled={!hasPrevBatch} className="btn-ghost px-4 py-2 text-sm" style={{ opacity: hasPrevBatch ? 1 : 0.3 }}>
-                ← 前の3冊
-              </button>
-              <span className="text-xs font-bold tracking-wider" style={{ color: 'var(--color-text-dim)' }}>
-                {currentBatch + 1} / {bookBatches.length}
-              </span>
-              <button onClick={() => { setCurrentBatch(prev => prev + 1); setCurrentCard(0); setExpandedLetter(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                disabled={!hasNextBatch} className="btn-ghost px-4 py-2 text-sm" style={{ opacity: hasNextBatch ? 1 : 0.3 }}>
-                次の3冊 →
-              </button>
-            </div>
+            {/* Batch prev/next — 既に閲覧済みバッチ間のナビ */}
+            {bookBatches.length > 1 && (
+              <div className="flex items-center justify-center gap-4">
+                <button onClick={() => { setCurrentBatch(prev => prev - 1); setCurrentCard(0); setExpandedLetter(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  disabled={!hasPrevBatch} className="btn-ghost px-4 py-2 text-sm" style={{ opacity: hasPrevBatch ? 1 : 0.3 }}>
+                  ← 前の3冊
+                </button>
+                <span className="text-xs font-bold tracking-wider" style={{ color: 'var(--color-text-dim)' }}>
+                  {currentBatch + 1} / {bookBatches.length}
+                </span>
+                <button onClick={() => { setCurrentBatch(prev => prev + 1); setCurrentCard(0); setExpandedLetter(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  disabled={!hasNextBatch} className="btn-ghost px-4 py-2 text-sm" style={{ opacity: hasNextBatch ? 1 : 0.3 }}>
+                  次の3冊 →
+                </button>
+              </div>
+            )}
 
-            {/* Load more button — only on last batch */}
-            {!hasNextBatch && canLoadMore && (
-              <button id="load-more-button" onClick={() => loadNextBatch(false)} disabled={searchingMore} className="btn-ghost w-full">
+            {/* 「他の本を探す」ボタン — ユーザーが最大到達バッチにいる＆まだバッチ上限に達していないとき表示 */}
+            {currentBatch === maxViewedBatch && maxViewedBatch < maxBatches - 1 && (
+              <button
+                id="load-more-button"
+                onClick={() => {
+                  const nextIdx = maxViewedBatch + 1;
+                  // 裏で既に次バッチが取得済みか確認
+                  if (bookBatches.length > nextIdx) {
+                    // 既にある → 即ナビゲート
+                    setCurrentBatch(nextIdx);
+                    setMaxViewedBatch(nextIdx);
+                    setCurrentCard(0);
+                    setExpandedLetter(null);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  } else if (!searchingMore) {
+                    // まだない & 検索中でもない → 検索開始（foreground）
+                    loadNextBatch(false);
+                  }
+                  // searchingMore=true の場合はボタンが検索中表示になりクリック無効
+                }}
+                disabled={searchingMore}
+                className="btn-ghost w-full"
+              >
                 {searchingMore ? (
-                  <span className="analyzing-pulse">📚 {bookBatches.length * 3 + 1}冊目以降を探しています…</span>
+                  <span className="analyzing-pulse">📚 {(maxViewedBatch + 1) * 3 + 1}冊目以降を探しています…</span>
                 ) : (
-                  `他の本を探す（${bookBatches.length * 3 + 1}冊目〜） →`
+                  `他の本を探す（${(maxViewedBatch + 1) * 3 + 1}冊目〜） →`
                 )}
               </button>
             )}
 
-            {/* Searching indicator (also shown if searching and user navigated away) */}
-            {searchingMore && hasNextBatch && (
-              <p className="text-center text-xs analyzing-pulse" style={{ color: 'var(--color-text-dim)' }}>
-                📚 さらにあなたのための本を探しています…
-              </p>
-            )}
-
-            {/* End message */}
-            {!canLoadMore && !hasNextBatch && (
+            {/* End message — 3バッチ9冊に到達 */}
+            {maxViewedBatch >= maxBatches - 1 && currentBatch === maxViewedBatch && (
               <div className="text-center fade-in-up">
                 <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--color-text-muted)' }}>
                   今回はここまで。<br />また別のnoteを書かれたら、いつでもここへいらしてくださいね。<br />あなたを導く羅針盤となる本を、一緒にお探しします。
