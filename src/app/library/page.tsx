@@ -355,7 +355,7 @@ export default function LibraryPage() {
               onClick={() => setActiveTab('timeline')}
               className={`library-tab ${activeTab === 'timeline' ? 'library-tab-active' : ''}`}
             >
-              これまでに綴った言葉たち
+              これまでの記録
             </button>
             <button
               onClick={() => setActiveTab('bookmarks')}
@@ -367,7 +367,7 @@ export default function LibraryPage() {
 
           {/* Tab Content */}
           {activeTab === 'timeline' ? (
-            /* ─── タブ1: これまでに綴った言葉たち（タイムライン） ─── */
+            /* ─── タブ1: これまでの記録（タイムライン） ─── */
             selections.length === 0 ? (
               <EmptyState />
             ) : (
@@ -515,87 +515,104 @@ function TimelineBlock({
         </div>
       )}
 
-      {/* Books grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 ml-4">
-        {visibleBooks.map((book, i) => {
-          const isBookmarked = bookmarkedTitles.has(book.title);
-          return (
-            <div key={i} className="group relative">
-              {/* Book card — tap opens modal */}
-              <button
-                onClick={() => onOpenModal(book)}
-                className="card p-3 w-full text-left transition-all hover:shadow-md active:scale-[0.98]"
-                style={{ cursor: 'pointer' }}
-              >
-                {/* Cover */}
-                <div className="w-full aspect-[2/3] rounded-lg overflow-hidden shadow-sm mb-3 relative">
-                  {book.thumbnail ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={book.thumbnail}
-                      alt={book.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const ph = (e.target as HTMLImageElement).nextElementSibling as HTMLElement; if (ph) ph.style.display = 'flex'; }}
-                    />
-                  ) : null}
-                  <div className="book-cover-placeholder" style={{ display: book.thumbnail ? 'none' : 'flex', position: 'absolute', inset: 0 }}>
-                    <div className="book-cover-placeholder-inner">
-                      <span className="book-cover-placeholder-title">{book.title}</span>
-                      <span className="book-cover-placeholder-author">{book.author}</span>
+      {/* Books — 横スワイプ（同じnoteの書籍を横に並べる） */}
+      <div className="ml-4 -mr-5 overflow-x-auto pb-3" style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex gap-4 pr-5" style={{ minWidth: 'min-content' }}>
+          {visibleBooks.map((book, i) => {
+            const isBookmarked = bookmarkedTitles.has(book.title);
+            return (
+              <div key={i} className="relative shrink-0" style={{ width: '160px', scrollSnapAlign: 'start' }}>
+                {/* Book card — tap opens modal */}
+                <button
+                  onClick={() => onOpenModal(book)}
+                  className="card p-3 w-full text-left transition-all hover:shadow-md active:scale-[0.98]"
+                  style={{ cursor: 'pointer' }}
+                >
+                  {/* Cover */}
+                  <div className="w-full aspect-[2/3] rounded-lg overflow-hidden shadow-sm mb-3 relative">
+                    {book.thumbnail ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={book.thumbnail}
+                        alt={book.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const ph = (e.target as HTMLImageElement).nextElementSibling as HTMLElement; if (ph) ph.style.display = 'flex'; }}
+                      />
+                    ) : null}
+                    <div className="book-cover-placeholder" style={{ display: book.thumbnail ? 'none' : 'flex', position: 'absolute', inset: 0 }}>
+                      <div className="book-cover-placeholder-inner">
+                        <span className="book-cover-placeholder-title">{book.title}</span>
+                        <span className="book-cover-placeholder-author">{book.author}</span>
+                      </div>
                     </div>
                   </div>
-                  {isBookmarked && (
-                    <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-[10px]"
-                      style={{ background: 'rgba(255,255,255,0.9)', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
-                      🔖
-                    </div>
+
+                  {/* Label (eyecatch) */}
+                  {book.label && (
+                    <p className="text-[10px] font-bold leading-tight mb-1" style={{
+                      background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                    }}>
+                      {book.label}
+                    </p>
                   )}
+
+                  {/* Title & Author */}
+                  <h4 className="text-xs font-bold leading-tight mb-0.5" style={{ color: 'var(--color-text)', overflowWrap: 'break-word' }}>
+                    {book.title}
+                  </h4>
+                  <p className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>
+                    {book.author}
+                  </p>
+                </button>
+
+                {/* しおりボタン — 常に表示、bookmarked/not の視覚区別 */}
+                <div className="mt-1.5 flex gap-1.5">
+                  {!isBookmarked ? (
+                    <button onClick={(e) => { e.stopPropagation(); onBookmark(book); }}
+                      className="flex-1 text-[10px] py-1.5 rounded-lg font-semibold transition-all"
+                      style={{ color: 'var(--color-text-dim)', background: 'rgba(0,0,0,0.03)', border: '1px solid var(--color-border)' }}>
+                      🔖 しおり
+                    </button>
+                  ) : (
+                    <button onClick={(e) => { e.stopPropagation(); onRemoveBookmark(book); }}
+                      className="flex-1 text-[10px] py-1.5 rounded-lg font-bold transition-all"
+                      style={{ color: '#fff', background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', border: '1px solid transparent' }}>
+                      ✅ しおり済
+                    </button>
+                  )}
+                  <button onClick={(e) => { e.stopPropagation(); onHide(book); }}
+                    className="text-[10px] py-1.5 px-2 rounded-lg transition-all"
+                    style={{ color: 'var(--color-text-dim)', background: 'rgba(0,0,0,0.03)', border: '1px solid var(--color-border)' }}
+                    title="そっと本棚から外す">
+                    ✕
+                  </button>
                 </div>
 
-                {/* Label (eyecatch) */}
-                {book.label && (
-                  <p className="text-[10px] font-bold leading-tight mb-1" style={{
-                    background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                  }}>
-                    {book.label}
-                  </p>
-                )}
-
-                {/* Title & Author */}
-                <h4 className="text-xs font-bold leading-tight mb-0.5" style={{ color: 'var(--color-text)' }}>
-                  {book.title}
-                </h4>
-                <p className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>
-                  {book.author}
-                </p>
-              </button>
-
-              {/* Quick actions (visible on hover/tap) */}
-              <div className="absolute top-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                {!isBookmarked ? (
-                  <button onClick={(e) => { e.stopPropagation(); onBookmark(book); }}
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] shadow-sm"
-                    style={{ background: 'rgba(255,255,255,0.95)' }} title="しおりをはさむ">
-                    🔖
-                  </button>
-                ) : (
-                  <button onClick={(e) => { e.stopPropagation(); onRemoveBookmark(book); }}
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] shadow-sm"
-                    style={{ background: 'rgba(255,255,255,0.95)', color: 'var(--g-coral)' }} title="しおりをはずす">
-                    ✓
-                  </button>
-                )}
-                <button onClick={(e) => { e.stopPropagation(); onHide(book); }}
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] shadow-sm"
-                  style={{ background: 'rgba(255,255,255,0.95)', color: 'var(--color-text-dim)' }} title="そっと本棚から外す">
-                  ✕
-                </button>
+                {/* 購入リンク */}
+                <div className="mt-1.5 flex gap-1.5">
+                  {book.amazonUrl && (
+                    <a href={book.amazonUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 text-[9px] text-center py-1.5 rounded-lg font-semibold transition-all"
+                      style={{ color: 'var(--color-accent)', background: 'rgba(208, 115, 74, 0.06)', border: '1px solid rgba(208, 115, 74, 0.15)' }}
+                      onClick={(e) => e.stopPropagation()}>
+                      Amazon →
+                    </a>
+                  )}
+                  {book.rakutenUrl && (
+                    <a href={book.rakutenUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 text-[9px] text-center py-1.5 rounded-lg font-semibold transition-all"
+                      style={{ color: '#bf0000', background: 'rgba(191, 0, 0, 0.04)', border: '1px solid rgba(191, 0, 0, 0.15)' }}
+                      onClick={(e) => e.stopPropagation()}>
+                      楽天 →
+                    </a>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
