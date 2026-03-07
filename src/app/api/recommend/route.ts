@@ -60,12 +60,21 @@ interface BookResult extends BookFromAI {
 }
 
 /**
- * 表紙画像URL取得 — ISBN検索による正確な画像取得:
- *   1. Google Books API「ISBN検索」(q=isbn:XXXXX) — ISBNで検索するので確実に正しい書籍の画像
- *   2. openBD カバー (cover.openbd.jp/{isbn}.jpg) — Google Booksにない場合
+ * タイトル簡易照合: GoogleBooks/openBDから返ったタイトルがAI出力タイトルと大まかに一致するか
+ */
+function looseTitleMatch(aiTitle: string, apiTitle: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[\s\u3000・:：\-−–—「」『』()（）]/g, '');
+  const a = norm(aiTitle);
+  const b = norm(apiTitle);
+  // 一方が他方を含むか、先頭5文字以上が一致すればOK
+  return a.includes(b) || b.includes(a) || (a.length >= 5 && b.length >= 5 && a.slice(0, 5) === b.slice(0, 5));
+}
+
+/**
+ * 表紙画像URL取得 — ISBN検索 + タイトル照合ガード:
+ *   1. Google Books API「ISBN検索」 — ISBNで検索 + タイトル照合で誤画像防止
+ *   2. openBD /v1/get API — Google Booksにない場合 + タイトル照合
  *   3. 空文字 → CSSプレースホルダー
- *
- * ※ タイトル検索は使わない（無関連画像を返すバグの原因だったため）
  */
 async function getBookCover(isbn: string, title: string): Promise<string> {
   if (!isbn || !/^\d{13}$/.test(isbn)) {
@@ -73,46 +82,56 @@ async function getBookCover(isbn: string, title: string): Promise<string> {
     return '';
   }
 
-  // ── Stage 1: Google Books API（ISBN検索 — 確実に正しい書籍） ──
+  // ── Stage 1: Google Books API（ISBN検索 + タイトル照合ガード） ──
   const googleApiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
   if (googleApiKey) {
     try {
       const res = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&fields=items(volumeInfo(imageLinks))&key=${googleApiKey}`,
+        `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&fields=items(volumeInfo(title,imageLinks))&key=${googleApiKey}`,
         { signal: AbortSignal.timeout(5000) }
       );
       if (res.ok) {
         const data = await res.json();
         const items = data?.items;
         if (items && items.length > 0) {
-          const imageLinks = items[0]?.volumeInfo?.imageLinks;
+          const vi = items[0]?.volumeInfo;
+          const apiTitle = vi?.title || '';
+          const imageLinks = vi?.imageLinks;
           const rawUrl = imageLinks?.thumbnail || imageLinks?.smallThumbnail;
-          if (rawUrl) {
+
+          if (rawUrl && looseTitleMatch(title, apiTitle)) {
             const url = rawUrl
               .replace('http://', 'https://')
               .replace('&edge=curl', '');
-            console.log(`[Cover] GoogleBooks ISBN hit for "${title}": ${url}`);
+            console.log(`[Cover] GoogleBooks ISBN hit for "${title}" (API: "${apiTitle}"): ${url}`);
             return url;
+          } else if (rawUrl) {
+            console.warn(`[Cover] GoogleBooks ISBN MISMATCH: "${title}" ≠ "${apiTitle}" — skipping wrong cover`);
           }
         }
       }
-      console.log(`[Cover] GoogleBooks no thumbnail for ISBN=${isbn} ("${title}")`);
+      console.log(`[Cover] GoogleBooks no match for ISBN=${isbn} ("${title}")`);
     } catch (e) {
       console.warn(`[Cover] GoogleBooks ISBN search failed for "${title}":`, e);
     }
   }
 
-  // ── Stage 2: openBD カバー ──
+  // ── Stage 2: openBD /v1/get API + タイトル照合 ──
   try {
     const openbdRes = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`, {
       signal: AbortSignal.timeout(3000),
     });
     if (openbdRes.ok) {
       const openbdData = await openbdRes.json();
-      const coverUrl = openbdData?.[0]?.summary?.cover;
-      if (coverUrl) {
-        console.log(`[Cover] openBD hit for "${title}": ${coverUrl}`);
+      const summary = openbdData?.[0]?.summary;
+      const coverUrl = summary?.cover;
+      const openbdTitle = summary?.title || '';
+
+      if (coverUrl && looseTitleMatch(title, openbdTitle)) {
+        console.log(`[Cover] openBD hit for "${title}" (API: "${openbdTitle}"): ${coverUrl}`);
         return coverUrl;
+      } else if (coverUrl) {
+        console.warn(`[Cover] openBD ISBN MISMATCH: "${title}" ≠ "${openbdTitle}" — skipping`);
       }
     }
     console.log(`[Cover] openBD no cover for ISBN=${isbn} ("${title}")`);
