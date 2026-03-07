@@ -490,30 +490,27 @@ export default function Home() {
               </div>
             )}
 
-            {/* 「他の本を探す」ボタン — ユーザーが最大到達バッチにいる＆まだバッチ上限に達していないとき表示 */}
+            {/* 「他の本を探す」ボタン — 常に静的テキスト表示、クリック時に結果判定 */}
             {currentBatch === maxViewedBatch && maxViewedBatch < maxBatches - 1 && (
               <button
                 id="load-more-button"
                 onClick={() => {
                   const nextIdx = maxViewedBatch + 1;
                   if (bookBatches.length > nextIdx) {
+                    // 裏で既に取得済み → 即表示
                     setCurrentBatch(nextIdx);
                     setMaxViewedBatch(nextIdx);
                     setCurrentCard(0);
                     setExpandedLetter(null);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
-                  } else if (!searchingMore) {
+                  } else {
+                    // まだ未取得 → foreground検索開始（ローディング画面遷移）
                     loadNextBatch(false);
                   }
                 }}
-                disabled={searchingMore}
                 className="btn-ghost w-full"
               >
-                {searchingMore ? (
-                  <span className="analyzing-pulse">{(maxViewedBatch + 1) * 3 + 1}冊目以降を探しています…</span>
-                ) : (
-                  `他の本を探す（${(maxViewedBatch + 1) * 3 + 1}冊目〜） →`
-                )}
+                {`他の本を探す（${(maxViewedBatch + 1) * 3 + 1}冊目〜） →`}
               </button>
             )}
 
