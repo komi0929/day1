@@ -542,14 +542,24 @@ function TimelineBlock({
                   style={{ cursor: 'pointer' }}
                 >
                   {/* Cover */}
-                  <div className="w-full aspect-[2/3] rounded-lg overflow-hidden shadow-sm relative">
+                  <div className="w-full aspect-2/3 rounded-lg overflow-hidden shadow-sm relative">
                     {book.thumbnail ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
                         src={book.thumbnail}
                         alt={book.title}
                         className="w-full h-full object-cover"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; const ph = (e.target as HTMLImageElement).nextElementSibling as HTMLElement; if (ph) ph.style.display = 'flex'; }}
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const img = e.target as HTMLImageElement;
+                          img.style.display = 'none';
+                          const parent = img.parentElement;
+                          if (parent) {
+                            const ph = parent.querySelector('.book-cover-placeholder') as HTMLElement;
+                            if (ph) ph.style.display = 'flex';
+                          }
+                        }}
                       />
                     ) : null}
                     <div className="book-cover-placeholder" style={{ display: book.thumbnail ? 'none' : 'flex', position: 'absolute', inset: 0 }}>
