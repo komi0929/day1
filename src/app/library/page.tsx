@@ -327,10 +327,10 @@ export default function LibraryPage() {
               <div className="relative">
                 <button
                   onClick={() => setShowSettings(!showSettings)}
-                  className="text-xs py-2 px-3 rounded-lg transition-colors"
-                  style={{ color: 'var(--color-text-dim)', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+                  className="text-sm py-2 px-3.5 rounded-lg transition-colors"
+                  style={{ color: 'var(--color-text)', background: 'var(--color-surface)', border: '1.5px solid var(--color-border)', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
                 >
-                  ⚙
+                  ⚙️
                 </button>
                 {showSettings && (
                   <div className="library-settings-menu">
@@ -643,11 +643,10 @@ function BookDetailModal({
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl"
+        className="relative w-full max-w-lg mx-3 max-h-[90dvh] overflow-y-auto rounded-2xl"
         style={{
           background: 'var(--color-surface)',
           boxShadow: '0 -4px 24px rgba(0,0,0,0.15)',
-          animation: 'slideUp 0.3s ease-out',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -720,17 +719,7 @@ function BookDetailModal({
           )}
         </div>
 
-        {/* Fragment — 当時の自分の言葉 */}
-        {fragment && (
-          <div className="mx-6 mt-5 p-4 rounded-xl" style={{ background: 'rgba(208, 115, 74, 0.04)', borderLeft: '3px solid var(--g-coral)' }}>
-            <p className="text-[10px] font-bold mb-1.5" style={{ color: 'var(--g-coral)' }}>
-              あなたが当時書いた一節
-            </p>
-            <p className="text-xs italic leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-              「{fragment}」
-            </p>
-          </div>
-        )}
+
 
         {/* Letter — 手紙（しおりとして挟まっていた） */}
         {letter && (

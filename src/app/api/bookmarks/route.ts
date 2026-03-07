@@ -31,12 +31,16 @@ export async function POST(req: Request) {
       .eq('book_title', book.title)
       .eq('book_author', book.author);
 
-    // 新規挿入
-    const insertData: Record<string, unknown> = {
+    // 最小限のカラムで挿入（DBスキーマに依存しない）
+    const basicData: Record<string, unknown> = {
       user_id: user.id,
-      selection_id: selectionId || null,
       book_title: book.title,
       book_author: book.author,
+    };
+
+    // オプションカラムを試行
+    const optionalFields: Record<string, unknown> = {
+      selection_id: selectionId || null,
       book_label: book.label || '',
       book_summary: book.summary || '',
       book_letter: book.letter || '',
@@ -45,11 +49,17 @@ export async function POST(req: Request) {
       book_rakuten_url: book.rakutenUrl || '',
     };
 
-    const { error } = await supabase.from('bookmarks').insert(insertData);
-
-    if (error) {
-      console.error('Bookmark insert error:', JSON.stringify(error));
-      return NextResponse.json({ error: 'BOOKMARK_FAILED', details: error.message }, { status: 500 });
+    // まず全フィールドで試行
+    const { error: fullError } = await supabase.from('bookmarks').insert({ ...basicData, ...optionalFields });
+    
+    if (fullError) {
+      console.warn('Full insert failed, trying minimal:', fullError.message);
+      // 失敗したら最小限で試行
+      const { error: minError } = await supabase.from('bookmarks').insert(basicData);
+      if (minError) {
+        console.error('Minimal insert also failed:', JSON.stringify(minError));
+        return NextResponse.json({ error: 'BOOKMARK_FAILED', details: minError.message }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ success: true });
