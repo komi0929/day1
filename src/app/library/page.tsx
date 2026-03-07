@@ -206,14 +206,36 @@ export default function LibraryPage() {
 
   const handleBookmark = async (book: BookData) => {
     if (!session?.access_token) return;
+    // Optimistic update: 即座にUIに反映
+    setBookmarks(prev => [
+      ...prev,
+      {
+        id: `temp-${Date.now()}`,
+        book_title: book.title,
+        book_author: book.author,
+        book_label: book.label || '',
+        book_summary: book.summary || '',
+        book_letter: book.letter || '',
+        book_thumbnail: book.thumbnail || '',
+        book_amazon_url: book.amazonUrl || '',
+        book_rakuten_url: book.rakutenUrl || '',
+        created_at: new Date().toISOString(),
+      }
+    ]);
     try {
-      await fetch('/api/bookmarks', {
+      const res = await fetch('/api/bookmarks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ book }),
       });
-      fetchLibrary();
-    } catch { /* ignore */ }
+      if (!res.ok) {
+        console.error('Bookmark API error:', await res.text());
+      }
+      fetchLibrary(); // DBデータで上書き
+    } catch (e) {
+      console.error('Bookmark error:', e);
+      fetchLibrary(); // 失敗時は元に戻す
+    }
   };
 
   const handleRemoveBookmark = async (book: BookData) => {
@@ -361,7 +383,7 @@ export default function LibraryPage() {
               onClick={() => setActiveTab('bookmarks')}
               className={`library-tab ${activeTab === 'bookmarks' ? 'library-tab-active' : ''}`}
             >
-              いつか読む本 {bookmarks.length > 0 && <span className="library-tab-badge">{bookmarks.length}</span>}
+              本棚 {bookmarks.length > 0 && <span className="library-tab-badge">{bookmarks.length}</span>}
             </button>
           </div>
 

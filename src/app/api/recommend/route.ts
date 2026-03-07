@@ -350,8 +350,8 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
           title: finalTitle,          // 正式タイトルで上書き
           author: finalAuthor,        // 正式著者名で上書き
           thumbnail: coverResult.coverUrl,
-          amazonUrl: generateAmazonUrl(finalTitle, finalAuthor),  // 正式タイトルでAmazonリンク生成
-          rakutenUrl: coverResult.rakutenUrl,
+          amazonUrl: generateAmazonUrl(finalTitle, finalAuthor),
+          rakutenUrl: coverResult.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
         };
       })
     );
@@ -381,4 +381,12 @@ function generateAmazonUrl(title: string, author: string): string {
   const query = encodeURIComponent(`${title} ${author}`);
   const tag = process.env.AMAZON_ASSOCIATE_TAG || 'compass08d-22';
   return `https://www.amazon.co.jp/s?k=${query}&tag=${tag}`;
+}
+
+/** 楽天ブックス検索URLを生成（APIで直接リンクが取得できなかった場合のフォールバック） */
+function generateRakutenUrl(title: string, author: string): string {
+  const query = encodeURIComponent(`${title} ${author}`);
+  const affId = process.env.RAKUTEN_AFFILIATE_ID || '';
+  const base = `https://books.rakuten.co.jp/search?sv=30&b=1&g=001&sitem=${query}`;
+  return affId ? `${base}&aid=${affId}` : base;
 }
