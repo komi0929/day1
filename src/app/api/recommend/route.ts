@@ -59,15 +59,27 @@ interface BookResult extends BookFromAI {
   amazonUrl: string;
 }
 
-/**
- * タイトル簡易照合: GoogleBooks/openBDから返ったタイトルがAI出力タイトルと大まかに一致するか
- */
-function looseTitleMatch(aiTitle: string, apiTitle: string): boolean {
-  const norm = (s: string) => s.toLowerCase().replace(/[\s\u3000・:：\-−–—「」『』()（）]/g, '');
-  const a = norm(aiTitle);
-  const b = norm(apiTitle);
-  // 一方が他方を含むか、先頭5文字以上が一致すればOK
-  return a.includes(b) || b.includes(a) || (a.length >= 5 && b.length >= 5 && a.slice(0, 5) === b.slice(0, 5));
+/** 正規化ヘルパー */
+const normTitle = (s: string) => s.toLowerCase().replace(/[\s\u3000・:：\-−–—「」『』()（）\[\]【】、。,./／]/g, '');
+
+/** タイトル照合（厳格 — ISBN検索用）: 間違ったISBNで別の本の画像取得を防止 */
+function strictTitleMatch(aiTitle: string, apiTitle: string): boolean {
+  const a = normTitle(aiTitle), b = normTitle(apiTitle);
+  if (!a || !b) return false;
+  return a.includes(b) || b.includes(a) || (a.length >= 3 && b.length >= 3 && a.slice(0, 3) === b.slice(0, 3));
+}
+
+/** タイトル照合（寛容 — タイトル検索用）: 検索クエリ自体がタイトルなので緩くしてOK */
+function softTitleMatch(aiTitle: string, apiTitle: string): boolean {
+  const a = normTitle(aiTitle), b = normTitle(apiTitle);
+  if (!a || !b) return false;
+  if (a.includes(b) || b.includes(a)) return true;
+  if (a.length >= 2 && b.length >= 2 && a.slice(0, 2) === b.slice(0, 2)) return true;
+  // 共通文字率30%以上
+  let common = 0;
+  const bSet = new Set(b);
+  for (const c of a) { if (bSet.has(c)) common++; }
+  return common >= Math.min(a.length, b.length) * 0.3;
 }
 
 /**
@@ -98,7 +110,7 @@ async function getBookCover(isbn: string, title: string, author: string): Promis
         if (vi) {
           const apiTitle = vi.title || '';
           const rawUrl = vi.imageLinks?.thumbnail || vi.imageLinks?.smallThumbnail;
-          if (rawUrl && looseTitleMatch(title, apiTitle)) {
+          if (rawUrl && strictTitleMatch(title, apiTitle)) {
             const url = rawUrl.replace('http://', 'https://').replace('&edge=curl', '');
             console.log(`[Cover] Stage1 GoogleBooks ISBN hit: "${title}" → ${url}`);
             return url;
@@ -121,7 +133,7 @@ async function getBookCover(isbn: string, title: string, author: string): Promis
       if (openbdRes.ok) {
         const d = await openbdRes.json();
         const summary = d?.[0]?.summary;
-        if (summary?.cover && looseTitleMatch(title, summary.title || '')) {
+        if (summary?.cover && strictTitleMatch(title, summary.title || '')) {
           console.log(`[Cover] Stage2 openBD ISBN hit: "${title}" → ${summary.cover}`);
           return summary.cover;
         }
@@ -147,7 +159,7 @@ async function getBookCover(isbn: string, title: string, author: string): Promis
           for (const item of items) {
             const vi = item?.volumeInfo;
             const apiTitle = vi?.title || '';
-            if (!looseTitleMatch(title, apiTitle)) continue;
+            if (!softTitleMatch(title, apiTitle)) continue;
 
             // Stage 3: ISBNを取得してopenBDカバーを試す
             const ids = vi?.industryIdentifiers || [];
