@@ -416,6 +416,7 @@ export default function Home() {
 
           <footer className="border-t px-4 py-8 text-center" style={{ borderColor: 'var(--color-border)' }}>
             <div className="flex items-center justify-center gap-6 text-[11px]" style={{ color: 'var(--color-text-dim)' }}>
+              {user && <Link href="/library" className="hover:underline" style={{ color: 'var(--color-text-dim)' }}>わたしの本棚</Link>}
               <Link href="/terms" className="hover:underline" style={{ color: 'var(--color-text-dim)' }}>利用規約</Link>
               <Link href="/privacy" className="hover:underline" style={{ color: 'var(--color-text-dim)' }}>プライバシーポリシー</Link>
             </div>
@@ -515,9 +516,25 @@ export default function Home() {
                 <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--color-text-muted)' }}>
                   今回はここまで。<br />また別のnoteを書かれたら、いつでもここへいらしてくださいね。<br />あなたを導く羅針盤となる本を、一緒にお探しします。
                 </p>
-                <button id="restart-button" onClick={handleGoHome} className="btn-primary w-full max-w-xs mx-auto">
-                  別のnoteで本を探す
-                </button>
+                {user ? (
+                  <div className="space-y-3">
+                    <Link href="/library" className="btn-primary block w-full max-w-xs mx-auto text-center py-3">
+                      📚 本棚を見にいく
+                    </Link>
+                    <button id="restart-button" onClick={doReset} className="btn-ghost w-full max-w-xs mx-auto">
+                      別のnoteで本を探す
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Link href="/library" className="btn-primary block w-full max-w-xs mx-auto text-center py-3">
+                      📚 本棚をつくる（無料）
+                    </Link>
+                    <button id="restart-button" onClick={handleGoHome} className="btn-ghost w-full max-w-xs mx-auto">
+                      別のnoteで本を探す
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

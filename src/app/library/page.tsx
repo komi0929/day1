@@ -87,6 +87,19 @@ export default function LibraryPage() {
     }
   };
 
+  // Close settings on outside click
+  useEffect(() => {
+    if (!showSettings) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.relative')) setShowSettings(false);
+    };
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [showSettings]);
+
+  const isGoogleUser = user?.app_metadata?.provider === 'google';
+
   // ─── Data fetching ───
   const fetchLibrary = useCallback(async () => {
     if (!session?.access_token) return;
@@ -302,9 +315,11 @@ export default function LibraryPage() {
                     <button onClick={handleSignOut} className="library-settings-item">
                       ここを離れる（ログアウト）
                     </button>
-                    <button onClick={handlePasswordReset} className="library-settings-item">
-                      パスワードを変更する
-                    </button>
+                    {!isGoogleUser && (
+                      <button onClick={handlePasswordReset} className="library-settings-item">
+                        パスワードを変更する
+                      </button>
+                    )}
                     <button onClick={() => setShowDeleteConfirm(true)} className="library-settings-item library-settings-danger">
                       この場所を閉じる（退会）
                     </button>
@@ -613,6 +628,7 @@ function BookDetailModal({
   const letter = bookmark?.book_letter || book.letter || '';
   const summary = bookmark?.book_summary || book.summary || '';
   const amazonUrl = bookmark?.book_amazon_url || book.amazonUrl || '';
+  const rakutenUrl = bookmark?.book_rakuten_url || book.rakutenUrl || '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
@@ -738,25 +754,38 @@ function BookDetailModal({
           </div>
         )}
 
-        {/* Amazon CTA — 感情が高まった状態で */}
-        {amazonUrl && (
-          <div className="p-6">
-            <a
-              href={amazonUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full text-center py-4 rounded-xl font-bold text-sm transition-all active:scale-[0.98]"
-              style={{
-                background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))',
-                color: '#fff',
-                boxShadow: '0 4px 16px rgba(232, 101, 90, 0.3)',
-              }}
-            >
-              📖 Amazonでこの本を迎え入れる
-            </a>
-            <p className="text-[9px] text-center mt-2" style={{ color: 'var(--color-text-dim)' }}>
-              Amazonのページに移動します
-            </p>
+        {/* Purchase CTAs */}
+        {(amazonUrl || rakutenUrl) && (
+          <div className="p-6 space-y-3">
+            {amazonUrl && (
+              <a
+                href={amazonUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center py-4 rounded-xl font-bold text-sm transition-all active:scale-[0.98]"
+                style={{
+                  background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))',
+                  color: '#fff',
+                  boxShadow: '0 4px 16px rgba(232, 101, 90, 0.3)',
+                }}
+              >
+                Amazonで見る →
+              </a>
+            )}
+            {rakutenUrl && (
+              <a
+                href={rakutenUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center py-3 rounded-xl font-bold text-xs transition-all"
+                style={{
+                  color: '#bf0000',
+                  border: '1.5px solid rgba(191, 0, 0, 0.25)',
+                }}
+              >
+                楽天ブックスで見る →
+              </a>
+            )}
           </div>
         )}
       </div>
