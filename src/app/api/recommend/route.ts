@@ -96,11 +96,49 @@ function titleMatch(aiTitle: string, apiTitle: string): boolean {
 }
 
 /**
+ * 楽天APIレスポンスからタイトル照合 + 表紙取得を試みるヘルパー
+ */
+function extractVerifiedFromRakutenItems(
+  items: unknown[],
+  aiTitle: string
+): RakutenVerifyResult | null {
+  for (const wrapper of items as { Item?: Record<string, string> }[]) {
+    const item = wrapper?.Item;
+    if (!item) continue;
+    const apiTitle = item.title || '';
+    if (!titleMatch(aiTitle, apiTitle)) {
+      console.log(`[Verify] Rakuten skip: "${aiTitle}" ≠ "${apiTitle}"`);
+      continue;
+    }
+
+    const coverUrl = (item.largeImageUrl || item.mediumImageUrl || '')
+      .replace('?_ex=200x200', '?_ex=300x300')
+      .replace('?_ex=120x120', '?_ex=300x300');
+
+    if (!coverUrl) {
+      console.log(`[Verify] Rakuten title match but NO COVER: "${aiTitle}" → "${apiTitle}"`);
+      continue;
+    }
+
+    const purchaseUrl = item.affiliateUrl || item.itemUrl || '';
+    const apiAuthor = item.author || '';
+    return {
+      coverUrl,
+      rakutenUrl: purchaseUrl,
+      verifiedTitle: apiTitle,
+      verifiedAuthor: apiAuthor,
+      verified: true,
+    };
+  }
+  return null;
+}
+
+/**
  * 楽天ブックスAPIで実在検証 + 表紙画像取得
  *
- * 【厳格ルール】
- * - 楽天ブックスAPIでタイトル照合が通り、かつ表紙画像が取得できた場合のみ verified: true
- * - 表紙画像がない場合は verified: false（フロントに表示しない）
+ * 2段階検索:
+ *   Stage 1: タイトル + 著者名 → 精度重視
+ *   Stage 2: タイトルのみ → 著者名フォーマット不一致の救済（マッチ率向上）
  */
 async function verifyWithRakuten(title: string, author: string): Promise<RakutenVerifyResult> {
   const empty: RakutenVerifyResult = { coverUrl: '', rakutenUrl: '', verifiedTitle: '', verifiedAuthor: '', verified: false };
@@ -112,59 +150,52 @@ async function verifyWithRakuten(title: string, author: string): Promise<Rakuten
     return empty;
   }
 
+  const baseUrl = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
+
+  // ── Stage 1: タイトル + 著者名で検索（精度重視） ──
   try {
-    const q = encodeURIComponent(title);
-    const a = encodeURIComponent(author);
-    const url = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&title=${q}&author=${a}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) {
-      console.log(`[Verify] Rakuten HTTP ${res.status} for "${title}"`);
-      return empty;
-    }
-
-    const data = await res.json();
-    const items = data?.Items;
-    if (!items || items.length === 0) {
-      console.log(`[Verify] Rakuten: no results for "${title}" by ${author}`);
-      return empty;
-    }
-
-    for (const wrapper of items) {
-      const item = wrapper?.Item;
-      if (!item) continue;
-      const apiTitle = item.title || '';
-      if (!titleMatch(title, apiTitle)) {
-        console.log(`[Verify] Rakuten skip: "${title}" ≠ "${apiTitle}"`);
-        continue;
+    const url1 = `${baseUrl}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
+    const res1 = await fetch(url1, { signal: AbortSignal.timeout(5000) });
+    if (res1.ok) {
+      const data1 = await res1.json();
+      const items1 = data1?.Items;
+      if (items1 && items1.length > 0) {
+        const result = extractVerifiedFromRakutenItems(items1, title);
+        if (result) {
+          console.log(`[Verify] ✅ Stage1 (title+author) VERIFIED: "${title}" → "${result.verifiedTitle}"`);
+          return result;
+        }
       }
-
-      const coverUrl = (item.largeImageUrl || item.mediumImageUrl || '')
-        .replace('?_ex=200x200', '?_ex=300x300')
-        .replace('?_ex=120x120', '?_ex=300x300');
-
-      if (!coverUrl) {
-        console.log(`[Verify] Rakuten title match but NO COVER: "${title}" → "${apiTitle}"`);
-        continue;
-      }
-
-      const purchaseUrl = item.affiliateUrl || item.itemUrl || '';
-      const apiAuthor = item.author || '';
-      console.log(`[Verify] ✅ Rakuten VERIFIED: "${title}" → "${apiTitle}" by ${apiAuthor} | cover=YES`);
-      return {
-        coverUrl,
-        rakutenUrl: purchaseUrl,
-        verifiedTitle: apiTitle,
-        verifiedAuthor: apiAuthor,
-        verified: true,
-      };
+      console.log(`[Verify] Stage1 (title+author): no match for "${title}" by ${author}`);
+    } else {
+      console.log(`[Verify] Stage1 Rakuten HTTP ${res1.status} for "${title}"`);
     }
-
-    console.log(`[Verify] Rakuten: title match failed for all results of "${title}"`);
-    return empty;
   } catch (e) {
-    console.warn(`[Verify] Rakuten API error for "${title}":`, e);
-    return empty;
+    console.warn(`[Verify] Stage1 Rakuten error for "${title}":`, e);
   }
+
+  // ── Stage 2: タイトルのみで検索（著者名フォーマット不一致の救済） ──
+  try {
+    const url2 = `${baseUrl}&title=${encodeURIComponent(title)}`;
+    const res2 = await fetch(url2, { signal: AbortSignal.timeout(5000) });
+    if (res2.ok) {
+      const data2 = await res2.json();
+      const items2 = data2?.Items;
+      if (items2 && items2.length > 0) {
+        const result = extractVerifiedFromRakutenItems(items2, title);
+        if (result) {
+          console.log(`[Verify] ✅ Stage2 (title-only) VERIFIED: "${title}" → "${result.verifiedTitle}"`);
+          return result;
+        }
+      }
+    }
+    console.log(`[Verify] Stage2 (title-only): no match for "${title}"`);
+  } catch (e) {
+    console.warn(`[Verify] Stage2 Rakuten error for "${title}":`, e);
+  }
+
+  console.log(`[Verify] ❌ FINAL: "${title}" by ${author} — not found in Rakuten`);
+  return empty;
 }
 
 /**
