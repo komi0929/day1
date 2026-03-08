@@ -347,23 +347,29 @@ export default function Home() {
             <div className="max-w-lg w-full text-center">
               <div className="mb-10 fade-in-up">
                 <div className="mx-auto mb-5 w-16 h-16 flex items-center justify-center rounded-full"
-                  style={{ background: 'linear-gradient(135deg, rgba(232,101,90,0.12), rgba(242,168,124,0.18))', boxShadow: '0 4px 20px rgba(232,101,90,0.10)' }}>
-                  <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
+                  style={{ background: 'linear-gradient(135deg, rgba(232,101,90,0.08), rgba(242,168,124,0.12))', boxShadow: '0 4px 24px rgba(232,101,90,0.10)' }}>
+                  <svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <defs>
-                      <linearGradient id="cg" x1="8" y1="8" x2="40" y2="40">
+                      <linearGradient id="cg" x1="8" y1="4" x2="40" y2="44" gradientUnits="userSpaceOnUse">
                         <stop offset="0%" stopColor="#E8655A" />
                         <stop offset="100%" stopColor="#F2A87C" />
                       </linearGradient>
-                      <filter id="noise">
-                        <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
-                        <feColorMatrix type="saturate" values="0" />
-                        <feBlend in="SourceGraphic" mode="multiply" />
-                      </filter>
                     </defs>
-                    <circle cx="24" cy="24" r="21" stroke="url(#cg)" strokeWidth="1.5" opacity="0.5" />
-                    <polygon points="24,7 20.5,24 27.5,24" fill="url(#cg)" />
-                    <polygon points="24,41 20.5,24 27.5,24" fill="rgba(44,37,32,0.15)" />
-                    <circle cx="24" cy="24" r="2" fill="url(#cg)" />
+                    {/* Outer ring */}
+                    <circle cx="24" cy="24" r="22" stroke="url(#cg)" strokeWidth="0.8" opacity="0.25" />
+                    <circle cx="24" cy="24" r="18" stroke="url(#cg)" strokeWidth="0.5" opacity="0.12" />
+                    {/* Cardinal ticks */}
+                    <line x1="24" y1="2" x2="24" y2="6" stroke="url(#cg)" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+                    <line x1="24" y1="42" x2="24" y2="46" stroke="url(#cg)" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+                    <line x1="2" y1="24" x2="6" y2="24" stroke="url(#cg)" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+                    <line x1="42" y1="24" x2="46" y2="24" stroke="url(#cg)" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+                    {/* N needle — warm gradient, diamond shape */}
+                    <polygon points="24,5 21.5,24 24,22 26.5,24" fill="url(#cg)" />
+                    {/* S needle — muted, softer */}
+                    <polygon points="24,43 21.5,24 24,26 26.5,24" fill="#D4C4B0" opacity="0.6" />
+                    {/* Center jewel */}
+                    <circle cx="24" cy="24" r="2.5" fill="url(#cg)" />
+                    <circle cx="24" cy="24" r="1.2" fill="white" opacity="0.6" />
                   </svg>
                 </div>
                 <h1 className="text-3xl md:text-4xl font-black text-gradient tracking-tight mb-4">compass</h1>
