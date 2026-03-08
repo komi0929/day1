@@ -47,9 +47,6 @@ labelはユーザーがこの本を読みたいと思うための**アイキャ�
 \`\`\``;
 }
 
-// ============================================================
-// Types
-// ============================================================
 interface BookFromAI {
   title: string;
   author: string;
@@ -83,9 +80,7 @@ function titleMatch(aiTitle: string, apiTitle: string): boolean {
   const a = normTitle(aiTitle), b = normTitle(apiTitle);
   if (!a || !b) return false;
   if (a === b) return true;
-  // 包含チェック（短い方が3文字以上で、一方が他方を完全に含む場合）
   if (a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a))) return true;
-  // Levenshtein距離ベース
   const maxLen = Math.max(a.length, b.length);
   if (maxLen === 0) return false;
   const m = a.length, n = b.length;
@@ -103,60 +98,21 @@ function titleMatch(aiTitle: string, apiTitle: string): boolean {
 }
 
 // ============================================================
-// 楽天API Rate Limiter (1req/sec per AppID)
+// 楽天API — 1リクエスト/冊（タイトル検索のみ）
 // ============================================================
 let lastRakutenCallTime = 0;
 
-async function rateLimitedRakutenFetch(url: string): Promise<Response> {
-  const now = Date.now();
-  const elapsed = now - lastRakutenCallTime;
-  if (elapsed < 1200) {
-    await new Promise(resolve => setTimeout(resolve, 1200 - elapsed));
-  }
-  lastRakutenCallTime = Date.now();
-  return fetch(url, { signal: AbortSignal.timeout(5000) });
-}
-
-// ============================================================
-// 楽天API Verification
-// ============================================================
-function extractVerifiedFromItems(
-  items: unknown[],
-  aiTitle: string
-): RakutenVerifyResult | null {
-  for (const wrapper of items as { Item?: Record<string, string> }[]) {
-    const item = wrapper?.Item;
-    if (!item) continue;
-    const apiTitle = item.title || '';
-    if (!titleMatch(aiTitle, apiTitle)) continue;
-
-    const coverUrl = (item.largeImageUrl || item.mediumImageUrl || '')
-      .replace('?_ex=200x200', '?_ex=300x300')
-      .replace('?_ex=120x120', '?_ex=300x300');
-    if (!coverUrl) continue;
-
-    return {
-      coverUrl,
-      rakutenUrl: item.affiliateUrl || item.itemUrl || '',
-      verifiedTitle: apiTitle,
-      verifiedAuthor: item.author || '',
-      verified: true,
-    };
-  }
-  return null;
-}
-
 /**
- * 楽天ブックスAPIで実在検証+表紙画像取得
+ * 楽天APIで実在検証 + 表紙取得
+ * 1冊 = 1 APIコール（タイトル検索） + レートリミット自動制御
  *
- * 3段階検索（各段階はグローバルレートリミッター経由）:
- *   Stage 0: ISBN検索（AIがISBNを提供した場合 — 最速・最精度）
- *   Stage 1: タイトル + 著者名 → 精度重視
- *   Stage 2: タイトルのみ → 著者名フォーマット不一致の救済
+ * 【設計判断】
+ * - author検索を削除: 著者名のフォーマット不一致（姓名スペース等）が原因で
+ *   ヒット率が激減していた。タイトル検索のみ + Levenshtein照合で十分な精度
+ * - ISBN検索を削除: Gemini出力のISBNは信頼性が低く、空振りが多い
+ * - 1冊1コールでVercel 60秒タイムアウト内に確実に収まる
  */
-async function verifyWithRakuten(
-  title: string, author: string, isbn: string
-): Promise<RakutenVerifyResult> {
+async function verifyWithRakuten(title: string): Promise<RakutenVerifyResult> {
   const empty: RakutenVerifyResult = {
     coverUrl: '', rakutenUrl: '', verifiedTitle: '', verifiedAuthor: '', verified: false,
   };
@@ -164,63 +120,62 @@ async function verifyWithRakuten(
   const rakutenAffId = process.env.RAKUTEN_AFFILIATE_ID || '';
   if (!rakutenAppId) return empty;
 
-  const base = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&hits=3&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
-
-  // ── Stage 0: ISBN検索（瞬速・最精度） ──
-  if (isbn && /^\d{13}$/.test(isbn)) {
-    try {
-      const res = await rateLimitedRakutenFetch(`${base}&isbn=${isbn}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.Items?.length > 0) {
-          const result = extractVerifiedFromItems(data.Items, title);
-          if (result) {
-            console.log(`[V] ✅ ISBN: "${title}"`);
-            return result;
-          }
-        }
-      }
-    } catch { /* continue to Stage 1 */ }
+  // レートリミット: 前回コールから1.05秒未満なら待つ
+  const now = Date.now();
+  const elapsed = now - lastRakutenCallTime;
+  if (elapsed < 1050) {
+    await new Promise(resolve => setTimeout(resolve, 1050 - elapsed));
   }
+  lastRakutenCallTime = Date.now();
 
-  // ── Stage 1: タイトル+著者名で検索 ──
   try {
-    const url1 = `${base}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
-    const res1 = await rateLimitedRakutenFetch(url1);
-    if (res1.ok) {
-      const data1 = await res1.json();
-      if (data1?.Items?.length > 0) {
-        const result = extractVerifiedFromItems(data1.Items, title);
-        if (result) {
-          console.log(`[V] ✅ S1: "${title}"`);
-          return result;
-        }
-      }
-    }
-  } catch { /* continue to Stage 2 */ }
+    const url = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&title=${encodeURIComponent(title)}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
 
-  // ── Stage 2: タイトルのみ検索（著者名表記揺れ救済） ──
-  try {
-    const url2 = `${base}&title=${encodeURIComponent(title)}`;
-    const res2 = await rateLimitedRakutenFetch(url2);
-    if (res2.ok) {
-      const data2 = await res2.json();
-      if (data2?.Items?.length > 0) {
-        const result = extractVerifiedFromItems(data2.Items, title);
-        if (result) {
-          console.log(`[V] ✅ S2: "${title}"`);
-          return result;
-        }
-      }
+    if (!res.ok) {
+      console.log(`[V] HTTP ${res.status}: "${title}"`);
+      return empty;
     }
-  } catch { /* exhausted */ }
 
-  console.log(`[V] ❌ "${title}" by ${author}`);
-  return empty;
+    const data = await res.json();
+    const items = data?.Items;
+    if (!items || items.length === 0) {
+      console.log(`[V] 0件: "${title}"`);
+      return empty;
+    }
+
+    // タイトル照合 + 表紙チェック
+    for (const wrapper of items as { Item?: Record<string, string> }[]) {
+      const item = wrapper?.Item;
+      if (!item) continue;
+      const apiTitle = item.title || '';
+      if (!titleMatch(title, apiTitle)) continue;
+
+      const coverUrl = (item.largeImageUrl || item.mediumImageUrl || '')
+        .replace('?_ex=200x200', '?_ex=300x300')
+        .replace('?_ex=120x120', '?_ex=300x300');
+      if (!coverUrl) continue;
+
+      console.log(`[V] ✅ "${title}" → "${apiTitle}"`);
+      return {
+        coverUrl,
+        rakutenUrl: item.affiliateUrl || item.itemUrl || '',
+        verifiedTitle: apiTitle,
+        verifiedAuthor: item.author || '',
+        verified: true,
+      };
+    }
+
+    console.log(`[V] タイトル不一致: "${title}"`);
+    return empty;
+  } catch (e) {
+    console.warn(`[V] Error: "${title}":`, e);
+    return empty;
+  }
 }
 
 // ============================================================
-// Sequential Verification with Early Return
+// 逐次検証 + 早期リターン
 // ============================================================
 async function verifyBooksSequentially(
   candidates: BookFromAI[],
@@ -234,7 +189,7 @@ async function verifyBooksSequentially(
     lastCheckedIdx = i;
 
     const book = candidates[i];
-    const result = await verifyWithRakuten(book.title, book.author, book.isbn || '');
+    const result = await verifyWithRakuten(book.title);
     if (!result.verified) continue;
 
     verified.push({
@@ -256,7 +211,6 @@ async function verifyBooksSequentially(
 // ============================================================
 export async function POST(req: Request) {
   try {
-    // ── Guard: payload size ──
     const contentLength = req.headers.get('content-length');
     if (contentLength && parseInt(contentLength) > 32768) {
       return NextResponse.json(
@@ -265,7 +219,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // ── Guard: rate limit ──
     const ip = getClientIp(req);
     const { success: rateLimitOk } = rateLimit(`recommend:${ip}`, { maxRequests: 10, windowMs: 60_000 });
     if (!rateLimitOk) {
@@ -277,22 +230,17 @@ export async function POST(req: Request) {
 
     const { body: noteBody, title: noteTitle, excludeTitles, includeFragments, pendingCandidates } = await req.json();
 
-    // ──────────────────────────────────────────────
-    // Mode A: pendingCandidates → AIスキップ、楽天検証のみ（超高速）
-    // Mode B: AI選書 → 楽天検証
-    // ──────────────────────────────────────────────
     let candidates: BookFromAI[];
     let fragments: string[] = [];
 
     if (pendingCandidates && Array.isArray(pendingCandidates) && pendingCandidates.length > 0) {
-      // ── Mode A ──
-      // pendingCandidatesのサニタイズ: 必須フィールドの存在を確認
+      // Mode A: AI呼び出しスキップ（バッチ2/3用）
       candidates = pendingCandidates.filter(
         (c: Record<string, unknown>) => c && typeof c.title === 'string' && typeof c.author === 'string'
       ) as BookFromAI[];
-      console.log(`[R] Mode A: ${candidates.length} pending candidates`);
+      console.log(`[R] Mode A: ${candidates.length} pending`);
     } else {
-      // ── Mode B ──
+      // Mode B: AI選書 + 楽天検証（バッチ1用）
       if (!noteBody || typeof noteBody !== 'string' || noteBody.trim().length < 50) {
         return NextResponse.json(
           { error: 'VALIDATION_ERROR', message: 'もう少しだけ文章を教えてください（50文字以上お願いします）' },
@@ -318,7 +266,7 @@ export async function POST(req: Request) {
         },
       });
 
-      // Heart profile context (継続カウンセリング)
+      // Heart profile context
       let pastContext = '';
       const authHeader = req.headers.get('authorization');
       if (authHeader?.startsWith('Bearer ')) {
@@ -344,11 +292,10 @@ ${profiles.map((p, i) => `[${i + 1}] ${new Date(p.created_at).toLocaleDateString
             }
           }
         } catch (e) {
-          console.error('Heart profile fetch failed:', e);
+          console.error('Heart profile error:', e);
         }
       }
 
-      // Exclusion list
       let exclusionNote = '';
       if (excludeTitles && Array.isArray(excludeTitles) && excludeTitles.length > 0) {
         exclusionNote = `\n\n【除外する書籍】以下は既に推薦済みです。絶対に重複しないでください：\n${excludeTitles.map((t: string) => `- ${t}`).join('\n')}`;
@@ -385,7 +332,6 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
 
       const rawText = result.response.text();
 
-      // Parse JSON (handle markdown fences and edge cases)
       let jsonText = rawText;
       const fenceMatch = rawText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
       if (fenceMatch) jsonText = fenceMatch[1];
@@ -406,11 +352,9 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
       console.log(`[R] Mode B: AI → ${candidates.length} candidates`);
     }
 
-    // ──────────────────────────────────────────────
-    // 楽天API逐次検証（3冊揃ったら即レスポンス）
-    // ──────────────────────────────────────────────
+    // 楽天API逐次検証（1冊1コール → 高速）
     const { verified, remaining } = await verifyBooksSequentially(candidates, BOOK_COUNT);
-    console.log(`[R] Result: ${verified.length}/${BOOK_COUNT} verified | ${remaining.length} pending`);
+    console.log(`[R] ${verified.length}/${BOOK_COUNT} verified | ${remaining.length} pending`);
 
     if (verified.length === 0) {
       return NextResponse.json(
@@ -425,7 +369,7 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
       pendingCandidates: remaining,
     });
   } catch (error: unknown) {
-    console.error('Recommend API error:', error);
+    console.error('Recommend error:', error);
     return NextResponse.json(
       { error: 'RECOMMEND_FAILED', message: 'ごめんなさい、本を探せませんでした。もう一度お試しください。' },
       { status: 500 }
@@ -433,9 +377,6 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
   }
 }
 
-// ============================================================
-// URL Generators
-// ============================================================
 function generateAmazonUrl(title: string, author: string): string {
   const query = encodeURIComponent(`${title} ${author}`);
   const tag = process.env.AMAZON_ASSOCIATE_TAG || 'compass08d-22';
