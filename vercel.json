@@ -1,3 +1,11 @@
 {
-  "regions": ["hnd1"]
+  "regions": ["hnd1"],
+  "functions": {
+    "src/app/api/recommend/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/heart-profile/route.ts": {
+      "maxDuration": 30
+    }
+  }
 }

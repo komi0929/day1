@@ -4,7 +4,7 @@ import { createAuthClient } from '@/lib/supabase';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 const BOOK_COUNT = 3;  // フロントに返す冊数
-const AI_REQUEST_COUNT = 5;  // AIに出力させる冊数（検証で除外される分を見越して多めに要求）
+const AI_REQUEST_COUNT = 4;  // AIに出力させる冊数（検証で除外される分を見越して多めに要求）
 
 function buildSystemPrompt() {
   return `あなたは、ユーザーの言葉を深く愛するプロの編集者です。
@@ -14,8 +14,8 @@ function buildSystemPrompt() {
 その上で、「この人が今まさに読むべき一冊」を${AI_REQUEST_COUNT}冊分リストアップしてください。
 
 ## 推薦の鉄則
-1. **実在する書籍のみ推薦する（最重要）**：Google検索で実在を確認した書籍のみ推薦すること。架空の本は絶対に推薦しない。Amazonや書店で購入できる実在の書籍のみ。タイトルと著者名は一字一句正確に。「それっぽいタイトル」を創作しないこと。
-2. **ISBN-13は必ずGoogle検索で確認して正確に出力すること**：推薦する書籍のISBN-13（13桁の数字、ハイフンなし）をGoogle検索で正確に取得し出力すること。ISBNが見つからない場合は空文字にする。絶対にISBNを創作・推測しないこと。
+1. **実在する書籍のみ推薦する（最重要）**：確実に実在する書籍のみ推薦すること。架空の本は絶対に推薦しない。Amazonや書店で購入できる実在の書籍のみ。タイトルと著者名は一字一句正確に。「それっぽいタイトル」を創作しないこと。
+2. **ISBN-13を正確に出力すること**：推薦する書籍のISBN-13（13桁の数字、ハイフンなし）を正確に出力すること。ISBNが不明・不確実な場合は空文字にする。絶対にISBNを創作・推測しないこと。
 3. **既知すぎない名著・良書を選ぶ**：定番中の定番（7つの習慣、嫌われる勇気 等）は避ける
 4. **${BOOK_COUNT}冊すべてが異なる切り口**：同じジャンル・同じ著者に偏らない
 5. **noteの内容に深く紐づく**：汎用的なおすすめではなく、この人のこのnoteだからこそ選ばれた本であること
@@ -120,7 +120,7 @@ async function getBookCover(title: string, author: string): Promise<CoverResult>
       const q = encodeURIComponent(title);
       const a = encodeURIComponent(author);
       const rakutenUrl = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&title=${q}&author=${a}&hits=3&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
-      const res = await fetch(rakutenUrl, { signal: AbortSignal.timeout(5000) });
+      const res = await fetch(rakutenUrl, { signal: AbortSignal.timeout(3000) });
       if (res.ok) {
         const data = await res.json();
         const items = data?.Items;
@@ -162,7 +162,7 @@ async function getBookCover(title: string, author: string): Promise<CoverResult>
       const query = encodeURIComponent(`${title} ${author}`);
       const res = await fetch(
         `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,imageLinks))&key=${googleApiKey}`,
-        { signal: AbortSignal.timeout(5000) }
+        { signal: AbortSignal.timeout(3000) }
       );
       if (res.ok) {
         const data = await res.json();
@@ -238,18 +238,15 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Google Search Grounding有効化 — AIが実在書籍を検索してISBNを取得する
-    // CRITICAL: responseMimeType:'application/json' + googleSearch causes grounding to be
-    // silently ignored. Use text mode and parse JSON manually.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const toolConfig: any[] = [{ googleSearch: {} }];
+    // JSON mode — Google Search Groundingは応答時間が30秒超になるため廃止
+    // 代わりに楽天APIで実在検証を行う
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 16384,
+        responseMimeType: 'application/json',
       },
-      tools: toolConfig,
     });
 
     // Heart profile context
@@ -300,17 +297,17 @@ ${noteBody.trim().slice(0, 8000)}
 ━━━━━━━━━━━━━━━━
 
 【最重要指示 — 実在書籍のみ】
-- ${AI_REQUEST_COUNT}冊すべて、Google検索で実在を確認した書籍であること。架空の書籍は絶対に禁止
+- ${AI_REQUEST_COUNT}冊すべて、確実に実在する書籍であること。架空の書籍は絶対に禁止
 - 書籍タイトルは「Amazonや楽天ブックスで検索してそのままヒットする正確なタイトル」を使うこと。1文字でもタイトルを変えたり省略したりするのは禁止
 - 著者名も正確に。フルネームで記載すること
-- 各書籍のISBN-13（13桁数字、ハイフンなし）もGoogle検索で正確に取得すること。推測や創作は絶対に禁止
+- ISBN-13（13桁数字、ハイフンなし）が確実にわかる場合のみ記載。不確実なら空文字にする
 - 主に日本の著者の和書から選書すること
 - 定番すぎるベストセラーは避け、noteの内容に深く紐づいた書籍を選ぶ
 - noteの具体的な言葉や感情を反映した、体温のある手紙形式の推薦文を書く
 ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ抽出する' : '- fragmentsは空配列[]にする'}
 - label: noteの言葉を活かした、この本を読みたくなる一文（要約ではなく、筆者の状況とこの本の交差点にある言葉）${exclusionNote}
 
-出力は上記で指定されたJSON形式のみを、コードブロック(\`\`\`json ... \`\`\`)で囲んで出力してください。JSON以外のテキストは一切出力しないでください。`;
+指定されたJSON形式のみ出力してください。`;
 
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
@@ -319,18 +316,23 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
 
     const rawText = result.response.text();
 
-    // Parse JSON from text response (may be wrapped in ```json fences)
+    // Parse JSON from response (JSON mode should return clean JSON, but handle edge cases)
     let jsonText = rawText;
     const fenceMatch = rawText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
     if (fenceMatch) jsonText = fenceMatch[1];
 
-    // Fallback: try to find raw JSON object
     if (!jsonText.trim().startsWith('{')) {
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       if (jsonMatch) jsonText = jsonMatch[0];
     }
 
-    const aiResult = JSON.parse(jsonText.trim());
+    let aiResult;
+    try {
+      aiResult = JSON.parse(jsonText.trim());
+    } catch {
+      console.error('[Recommend] JSON parse failed. Raw text:', rawText.slice(0, 500));
+      throw new Error('AIの応答を解析できませんでした');
+    }
     const books: BookFromAI[] = aiResult.books || [];
     const fragments: string[] = aiResult.fragments || [];
 
@@ -356,13 +358,12 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
       })
     );
 
-    // Phase 3: 【厳格な実在検証】楽天orGoogle Booksで確認済みの本のみ返却
-    const verifiedBooks = enrichedBooks.filter((book) => {
-      if (book.thumbnail || book.rakutenUrl) return true;
-      console.warn(`[EXCLUDED] "${book.title}" — APIで実在確認できず除外`);
-      return false;
-    }).slice(0, BOOK_COUNT);
-    console.log(`[Verify] AI${books.length}冊→検証通過${verifiedBooks.length}冊を返却`);
+    // Phase 3: 検証済みの本を優先的に返却。API未検証でも除外はしない（ユーザー体験優先）
+    const verified = enrichedBooks.filter(b => b.thumbnail && b.thumbnail !== '');
+    const unverified = enrichedBooks.filter(b => !b.thumbnail || b.thumbnail === '');
+    // 検証済みを優先し、足りなければ未検証も含めてBOOK_COUNT冊返却
+    const verifiedBooks = [...verified, ...unverified].slice(0, BOOK_COUNT);
+    console.log(`[Verify] AI${books.length}冊 → 表紙あり${verified.length}冊 + 表紙なし${unverified.length}冊 → ${verifiedBooks.length}冊返却`);
 
     return NextResponse.json({
       books: verifiedBooks,
