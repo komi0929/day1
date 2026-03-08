@@ -105,64 +105,93 @@ async function verifyAndEnrich(
     coverUrl: '', rakutenUrl: '', found: false,
   };
 
-  const appId = process.env.RAKUTEN_APP_ID || '';
-  const affId = process.env.RAKUTEN_AFFILIATE_ID || '';
-  if (!appId) return empty;
+  // ── 安全装置: 関数全体をtry-catchで囲み、いかなる例外でもサーバーを落とさない ──
+  try {
+    const appId = process.env.RAKUTEN_APP_ID || '';
+    const affId = process.env.RAKUTEN_AFFILIATE_ID || '';
+    if (!appId) {
+      console.warn('[V] RAKUTEN_APP_ID未設定 — スキップ');
+      return empty;
+    }
 
-  const base = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${appId}&hits=5&format=json${affId ? `&affiliateId=${affId}` : ''}`;
+    const base = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${appId}&hits=5&format=json${affId ? `&affiliateId=${affId}` : ''}`;
 
-  // ── フェーズ1: ISBN検索（最速・最精度） ──
-  if (aiIsbn && /^\d{13}$/.test(aiIsbn)) {
+    // ── フェーズ1: ISBN検索（最速・最精度） ──
+    if (aiIsbn && /^\d{13}$/.test(aiIsbn)) {
+      try {
+        const res = await fetch(`${base}&isbn=${aiIsbn}`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const data = await res.json();
+          const item = safeExtractFirstItem(data);
+          if (item) {
+            console.log(`[V] ✅ ISBN: "${aiTitle}" → "${item.title}"`);
+            return buildResult(item);
+          }
+        } else {
+          console.warn(`[V] ISBN検索 HTTP ${res.status}: "${aiTitle}"`);
+        }
+      } catch (e) {
+        console.warn(`[V] ISBN検索エラー: "${aiTitle}":`, e);
+      }
+    }
+
+    // ── フェーズ2: タイトル+著者名検索 ──
     try {
-      const res = await fetch(`${base}&isbn=${aiIsbn}`, { signal: AbortSignal.timeout(5000) });
+      const url = `${base}&title=${encodeURIComponent(aiTitle)}&author=${encodeURIComponent(aiAuthor)}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         const data = await res.json();
-        const item = extractFirstItem(data);
+        const item = safeExtractFirstItem(data);
         if (item) {
-          console.log(`[V] ✅ ISBN: "${aiTitle}" → "${item.title}"`);
+          console.log(`[V] ✅ Title+Author: "${aiTitle}" → "${item.title}"`);
           return buildResult(item);
         }
+      } else {
+        console.warn(`[V] Title+Author検索 HTTP ${res.status}: "${aiTitle}"`);
       }
-    } catch { /* fall through to Phase 2 */ }
+    } catch (e) {
+      console.warn(`[V] Title+Author検索エラー: "${aiTitle}":`, e);
+    }
+
+    // ── フェーズ2b: タイトルのみ検索（著者名表記揺れ救済） ──
+    try {
+      const url = `${base}&title=${encodeURIComponent(aiTitle)}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const data = await res.json();
+        const item = safeExtractFirstItem(data);
+        if (item) {
+          console.log(`[V] ✅ Title-only: "${aiTitle}" → "${item.title}"`);
+          return buildResult(item);
+        }
+      } else {
+        console.warn(`[V] Title-only検索 HTTP ${res.status}: "${aiTitle}"`);
+      }
+    } catch (e) {
+      console.warn(`[V] Title-only検索エラー: "${aiTitle}":`, e);
+    }
+
+    console.log(`[V] ❌ "${aiTitle}" by ${aiAuthor} — 全フェーズ不一致`);
+    return empty;
+  } catch (e) {
+    // ── 最終安全装置: いかなる未知の例外もここで受け止める ──
+    console.error(`[V] 致命的エラー（安全装置発動）: "${aiTitle}":`, e);
+    return empty;
   }
-
-  // ── フェーズ2: タイトル+著者名検索 ──
-  try {
-    const url = `${base}&title=${encodeURIComponent(aiTitle)}&author=${encodeURIComponent(aiAuthor)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (res.ok) {
-      const data = await res.json();
-      const item = extractFirstItem(data);
-      if (item) {
-        console.log(`[V] ✅ Title+Author: "${aiTitle}" → "${item.title}"`);
-        return buildResult(item);
-      }
-    }
-  } catch { /* fall through to Phase 2b */ }
-
-  // ── フェーズ2b: タイトルのみ検索（著者名表記揺れ救済） ──
-  try {
-    const url = `${base}&title=${encodeURIComponent(aiTitle)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (res.ok) {
-      const data = await res.json();
-      const item = extractFirstItem(data);
-      if (item) {
-        console.log(`[V] ✅ Title-only: "${aiTitle}" → "${item.title}"`);
-        return buildResult(item);
-      }
-    }
-  } catch { /* exhausted */ }
-
-  console.log(`[V] ❌ "${aiTitle}" by ${aiAuthor} — not found`);
-  return empty;
 }
 
-/** APIレスポンスから最初のItemを抽出 */
-function extractFirstItem(data: { Items?: { Item?: RakutenItem }[] }): RakutenItem | null {
-  const items = data?.Items;
-  if (!items || items.length === 0) return null;
-  return items[0]?.Item || null;
+/** APIレスポンスから最初のItemを安全に抽出（TypeError防止） */
+function safeExtractFirstItem(data: unknown): RakutenItem | null {
+  try {
+    if (!data || typeof data !== 'object') return null;
+    const d = data as { Items?: unknown[] };
+    if (!d.Items || !Array.isArray(d.Items) || d.Items.length === 0) return null;
+    const first = d.Items[0] as { Item?: RakutenItem } | undefined;
+    if (!first || !first.Item) return null;
+    return first.Item;
+  } catch {
+    return null;
+  }
 }
 
 /** 楽天Itemから公式データでEnrichedResultを構築 */
