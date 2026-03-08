@@ -4,7 +4,7 @@ import { createAuthClient } from '@/lib/supabase';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 const BOOK_COUNT = 3;  // フロントに返す冊数
-const AI_REQUEST_COUNT = 4;  // AIに出力させる冊数（検証で除外される分を見越して多めに要求）
+const AI_REQUEST_COUNT = 9;  // AIに出力させる冊数（楽天API検証で除外される分を見越して多めに要求）
 
 function buildSystemPrompt() {
   return `あなたは、ユーザーの言葉を深く愛するプロの編集者です。
@@ -17,15 +17,16 @@ function buildSystemPrompt() {
 1. **実在する書籍のみ推薦する（最重要）**：確実に実在する書籍のみ推薦すること。架空の本は絶対に推薦しない。Amazonや書店で購入できる実在の書籍のみ。タイトルと著者名は一字一句正確に。「それっぽいタイトル」を創作しないこと。
 2. **ISBN-13を正確に出力すること**：推薦する書籍のISBN-13（13桁の数字、ハイフンなし）を正確に出力すること。ISBNが不明・不確実な場合は空文字にする。絶対にISBNを創作・推測しないこと。
 3. **既知すぎない名著・良書を選ぶ**：定番中の定番（7つの習慣、嫌われる勇気 等）は避ける
-4. **${BOOK_COUNT}冊すべてが異なる切り口**：同じジャンル・同じ著者に偏らない
+4. **${AI_REQUEST_COUNT}冊すべてが異なる切り口**：同じジャンル・同じ著者に偏らない
 5. **noteの内容に深く紐づく**：汎用的なおすすめではなく、この人のこのnoteだからこそ選ばれた本であること
 6. **主に日本の著者の和書から選書すること**。有名な出版社（岩波書店、講談社、新潮社、文藝春秋、ダイヤモンド社、NHK出版等）から出版された書籍を優先する
+7. **楽天ブックスに掲載されている書籍を優先すること**：楽天ブックスで検索してヒットする書籍を中心に選ぶ。絶版や電子書籍のみの書籍は避ける
 
 ## labelの書き方（最重要）
 labelはユーザーがこの本を読みたいと思うための**アイキャッチの一文**です。
 - noteの文章に使われている具体的な言葉・表現を必ず引用または言い換えて使う
 - 書籍の内容要約ではなく、「ユーザーの状況 × この本」の交差点にある一言
-- 例: 「\\"売上が立たない\\"あなたに必要な視点」「迷いの正体を教えてくれる一冊」「\\"もう一人でいい\\"と思えた時に読む本」
+- 例: 「\\\"売上が立たない\\\"あなたに必要な視点」「迷いの正体を教えてくれる一冊」「\\\"もう一人でいい\\\"と思えた時に読む本」
 - 短く刺さる表現（15〜30字）
 
 ## 出力JSON
@@ -35,7 +36,7 @@ labelはユーザーがこの本を読みたいと思うための**アイキャ�
     {
       "title": "正確な書籍タイトル",
       "author": "著者名",
-      "isbn": "ISBN-13（13桁数字・ハイフンなし。Google検索で確認した正確な値。不明なら空文字）",
+      "isbn": "ISBN-13（13桁数字・ハイフンなし。不明なら空文字）",
       "label": "noteの言葉を活かしたアイキャッチ（15〜30字）",
       "summary": "客観的な書籍概要（100〜150字）",
       "letter": "手紙形式の推薦文（200〜400字）。ユーザーのnote本文の具体的な言葉を引用し、体温を感じる文章に。"
@@ -61,14 +62,11 @@ interface BookResult extends BookFromAI {
   rakutenUrl: string;
 }
 
-interface CoverResult {
+interface RakutenVerifyResult {
   coverUrl: string;
   rakutenUrl: string;
-  /** 楽天/Google BooksのAPIが返した正式タイトル */
   verifiedTitle: string;
-  /** 楽天/Google BooksのAPIが返した正式著者名 */
   verifiedAuthor: string;
-  /** 実在確認済みフラグ */
   verified: boolean;
 }
 
@@ -100,102 +98,77 @@ function titleMatch(aiTitle: string, apiTitle: string): boolean {
 }
 
 /**
- * 表紙画像 + 購入URL取得 — 3段階カスケード:
+ * 楽天ブックスAPIで実在検証 + 表紙画像取得
  *
- *   Stage 1 (Main):     楽天ブックスAPI — タイトル+著者で検索。カバー画像+購入URLをワンストップ取得
- *   Stage 2 (Fallback):  Google Books API — 楽天にない洋書・専門書カバー
- *   Stage 3 (Fallback):  openBD — 最終チェック
- *   Stage 4:             CSSプレースホルダー
- *
- *   ※ 全段階でタイトル照合ガード付き。間違った画像は絶対に表示しない。
+ * 【厳格ルール】
+ * - 楽天ブックスAPIでタイトル照合が通り、かつ表紙画像が取得できた場合のみ verified: true
+ * - 表紙画像がない場合は verified: false（フロントに表示しない）
+ * - Google Books / openBD フォールバックは行わない（楽天のみで判定）
  */
-async function getBookCover(title: string, author: string): Promise<CoverResult> {
-  const empty: CoverResult = { coverUrl: '', rakutenUrl: '', verifiedTitle: '', verifiedAuthor: '', verified: false };
+async function verifyWithRakuten(title: string, author: string): Promise<RakutenVerifyResult> {
+  const empty: RakutenVerifyResult = { coverUrl: '', rakutenUrl: '', verifiedTitle: '', verifiedAuthor: '', verified: false };
 
-  // ── Stage 1 (Main): 楽天ブックスAPI ──
   const rakutenAppId = process.env.RAKUTEN_APP_ID || '';
   const rakutenAffId = process.env.RAKUTEN_AFFILIATE_ID || '';
-  if (rakutenAppId) {
-    try {
-      const q = encodeURIComponent(title);
-      const a = encodeURIComponent(author);
-      const rakutenUrl = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&title=${q}&author=${a}&hits=3&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
-      const res = await fetch(rakutenUrl, { signal: AbortSignal.timeout(3000) });
-      if (res.ok) {
-        const data = await res.json();
-        const items = data?.Items;
-        if (items && items.length > 0) {
-          for (const wrapper of items) {
-            const item = wrapper?.Item;
-            if (!item) continue;
-            const apiTitle = item.title || '';
-            if (!titleMatch(title, apiTitle)) {
-              console.log(`[Cover] Rakuten skip: "${title}" ≠ "${apiTitle}"`);
-              continue;
-            }
-            const coverUrl = (item.largeImageUrl || item.mediumImageUrl || '')
-              .replace('?_ex=200x200', '?_ex=300x300')
-              .replace('?_ex=120x120', '?_ex=300x300');
-            const purchaseUrl = item.affiliateUrl || item.itemUrl || '';
-            const apiAuthor = item.author || '';
-            console.log(`[Cover] Stage1 Rakuten VERIFIED: "${title}" → "${apiTitle}" by ${apiAuthor} | cover=${coverUrl ? 'YES' : 'NO'}`);
-            return {
-              coverUrl: coverUrl || '',
-              rakutenUrl: purchaseUrl,
-              verifiedTitle: apiTitle,
-              verifiedAuthor: apiAuthor,
-              verified: true,
-            };
-          }
-        }
-      }
-      console.log(`[Cover] Stage1 Rakuten: no match for "${title}"`);
-    } catch (e) {
-      console.warn(`[Cover] Stage1 Rakuten failed:`, e);
-    }
+  if (!rakutenAppId) {
+    console.warn('[Verify] RAKUTEN_APP_ID not set');
+    return empty;
   }
 
-  // ── Stage 2 (Fallback): Google Books API ──
-  const googleApiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
-  if (googleApiKey) {
-    try {
-      const query = encodeURIComponent(`${title} ${author}`);
-      const res = await fetch(
-        `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,imageLinks))&key=${googleApiKey}`,
-        { signal: AbortSignal.timeout(3000) }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const items = data?.items;
-        if (items && items.length > 0) {
-          for (const item of items) {
-            const vi = item?.volumeInfo;
-            const apiTitle = vi?.title || '';
-            if (!titleMatch(title, apiTitle)) continue;
-            const rawUrl = vi?.imageLinks?.thumbnail || vi?.imageLinks?.smallThumbnail;
-            if (rawUrl) {
-              const coverUrl = rawUrl.replace('http://', 'https://').replace('&edge=curl', '');
-              const gAuthor = vi?.authors?.[0] || author;
-              console.log(`[Cover] Stage2 GoogleBooks VERIFIED: "${title}" → "${apiTitle}" by ${gAuthor}`);
-              return {
-                coverUrl,
-                rakutenUrl: '',
-                verifiedTitle: apiTitle,
-                verifiedAuthor: gAuthor,
-                verified: true,
-              };
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn(`[Cover] Stage2 GoogleBooks failed:`, e);
+  try {
+    const q = encodeURIComponent(title);
+    const a = encodeURIComponent(author);
+    const url = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&title=${q}&author=${a}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) {
+      console.log(`[Verify] Rakuten HTTP ${res.status} for "${title}"`);
+      return empty;
     }
-  }
 
-  // ── Stage 3 (Fallback): openBD ──
-  console.warn(`[Cover] UNVERIFIED: "${title}" by ${author} — not found in any API. Will be excluded.`);
-  return empty;
+    const data = await res.json();
+    const items = data?.Items;
+    if (!items || items.length === 0) {
+      console.log(`[Verify] Rakuten: no results for "${title}" by ${author}`);
+      return empty;
+    }
+
+    for (const wrapper of items) {
+      const item = wrapper?.Item;
+      if (!item) continue;
+      const apiTitle = item.title || '';
+      if (!titleMatch(title, apiTitle)) {
+        console.log(`[Verify] Rakuten skip: "${title}" ≠ "${apiTitle}"`);
+        continue;
+      }
+
+      // 表紙画像の取得（必須）
+      const coverUrl = (item.largeImageUrl || item.mediumImageUrl || '')
+        .replace('?_ex=200x200', '?_ex=300x300')
+        .replace('?_ex=120x120', '?_ex=300x300');
+
+      if (!coverUrl) {
+        console.log(`[Verify] Rakuten title match but NO COVER: "${title}" → "${apiTitle}"`);
+        continue;  // 表紙なしは不合格
+      }
+
+      const purchaseUrl = item.affiliateUrl || item.itemUrl || '';
+      const apiAuthor = item.author || '';
+      console.log(`[Verify] ✅ Rakuten VERIFIED: "${title}" → "${apiTitle}" by ${apiAuthor} | cover=YES`);
+      return {
+        coverUrl,
+        rakutenUrl: purchaseUrl,
+        verifiedTitle: apiTitle,
+        verifiedAuthor: apiAuthor,
+        verified: true,
+      };
+    }
+
+    console.log(`[Verify] Rakuten: title match failed for all results of "${title}"`);
+    return empty;
+  } catch (e) {
+    console.warn(`[Verify] Rakuten API error for "${title}":`, e);
+    return empty;
+  }
 }
 
 
@@ -238,8 +211,9 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // JSON mode — Google Search Groundingは応答時間が30秒超になるため廃止
-    // 代わりに楽天APIで実在検証を行う
+    // JSON mode — Gemini 2.5 Flash（選書クオリティ最優先）
+    // Google Search Groundingは応答時間が30秒超になるため廃止
+    // 実在検証は楽天ブックスAPIで厳格に行う
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: {
@@ -288,7 +262,8 @@ ${profiles.map((p, i) => `[${i + 1}] ${new Date(p.created_at).toLocaleDateString
 
     const wantFragments = includeFragments !== false;
 
-    const userPrompt = `以下のnote記事を深く読み解き、この筆者が「今まさに読むべき一冊」を${BOOK_COUNT}冊推薦してください。
+    const userPrompt = `以下のnote記事を深く読み解き、この筆者が「今まさに読むべき一冊」を${AI_REQUEST_COUNT}冊推薦してください。
+候補は多めに出してください。この中から楽天ブックスAPIで実在確認できたものだけを採用します。
 
 ━━━━━━━━━━━━━━━━
 ■ note記事タイトル: ${noteTitle || '（タイトルなし）'}
@@ -301,7 +276,7 @@ ${noteBody.trim().slice(0, 8000)}
 - 書籍タイトルは「Amazonや楽天ブックスで検索してそのままヒットする正確なタイトル」を使うこと。1文字でもタイトルを変えたり省略したりするのは禁止
 - 著者名も正確に。フルネームで記載すること
 - ISBN-13（13桁数字、ハイフンなし）が確実にわかる場合のみ記載。不確実なら空文字にする
-- 主に日本の著者の和書から選書すること
+- 主に日本の著者の和書から選書すること。楽天ブックスに掲載されている書籍を優先する
 - 定番すぎるベストセラーは避け、noteの内容に深く紐づいた書籍を選ぶ
 - noteの具体的な言葉や感情を反映した、体温のある手紙形式の推薦文を書く
 ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ抽出する' : '- fragmentsは空配列[]にする'}
@@ -336,34 +311,48 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
     const books: BookFromAI[] = aiResult.books || [];
     const fragments: string[] = aiResult.fragments || [];
 
-    // Phase 2: 表紙画像 + 購入URL取得 + 実在検証（楽天 → Google Books）
-    const enrichedBooks: BookResult[] = await Promise.all(
-      books.map(async (book) => {
-        const coverResult = await getBookCover(book.title, book.author);
-        
-        // 【抜本改善】APIで検証済みの正式タイトル・著者名でAIの出力を上書きする
-        const finalTitle = coverResult.verifiedTitle || book.title;
-        const finalAuthor = coverResult.verifiedAuthor || book.author;
-        
-        console.log(`[Result] ${book.title} → ${finalTitle} | verified=${coverResult.verified} | cover=${coverResult.coverUrl ? 'YES' : 'NO'}`);
+    console.log(`[Recommend] AI returned ${books.length} candidates. Verifying against Rakuten API...`);
 
-        return {
-          ...book,
-          title: finalTitle,          // 正式タイトルで上書き
-          author: finalAuthor,        // 正式著者名で上書き
-          thumbnail: coverResult.coverUrl,
-          amazonUrl: generateAmazonUrl(finalTitle, finalAuthor),
-          rakutenUrl: coverResult.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
-        };
+    // ──────────────────────────────────────────────
+    // Phase 2: 楽天API並列検証 — 全候補を同時に検証し、速度を最大化
+    // ──────────────────────────────────────────────
+    const verificationResults = await Promise.all(
+      books.map(async (book) => {
+        const result = await verifyWithRakuten(book.title, book.author);
+        return { book, result };
       })
     );
 
-    // Phase 3: 検証済みの本を優先的に返却。API未検証でも除外はしない（ユーザー体験優先）
-    const verified = enrichedBooks.filter(b => b.thumbnail && b.thumbnail !== '');
-    const unverified = enrichedBooks.filter(b => !b.thumbnail || b.thumbnail === '');
-    // 検証済みを優先し、足りなければ未検証も含めてBOOK_COUNT冊返却
-    const verifiedBooks = [...verified, ...unverified].slice(0, BOOK_COUNT);
-    console.log(`[Verify] AI${books.length}冊 → 表紙あり${verified.length}冊 + 表紙なし${unverified.length}冊 → ${verifiedBooks.length}冊返却`);
+    // Phase 3: AIの推薦順序を維持したまま、楽天で検証+表紙取得できたものだけ採用
+    const verifiedBooks: BookResult[] = [];
+    for (const { book, result } of verificationResults) {
+      if (!result.verified || !result.coverUrl) continue;  // 楽天未検証 or 表紙なし → 除外
+      
+      const finalTitle = result.verifiedTitle || book.title;
+      const finalAuthor = result.verifiedAuthor || book.author;
+      
+      verifiedBooks.push({
+        ...book,
+        title: finalTitle,
+        author: finalAuthor,
+        thumbnail: result.coverUrl,
+        amazonUrl: generateAmazonUrl(finalTitle, finalAuthor),
+        rakutenUrl: result.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
+      });
+
+      if (verifiedBooks.length >= BOOK_COUNT) break;  // 必要数に達したら終了
+    }
+
+    console.log(`[Verify] AI ${books.length}冊 → 楽天検証通過 ${verifiedBooks.length}冊 / 必要 ${BOOK_COUNT}冊`);
+
+    if (verifiedBooks.length === 0) {
+      // 楽天で1冊も検証できなかった場合のフォールバック
+      console.error('[Verify] No books passed Rakuten verification');
+      return NextResponse.json(
+        { error: 'RECOMMEND_FAILED', message: 'ごめんなさい、条件に合う本が見つかりませんでした。もう一度お試しください。' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       books: verifiedBooks,
