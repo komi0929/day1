@@ -1,17 +1,22 @@
 # Changelog
 
-## [2026-03-08] — 選書アーキテクチャ全面再設計＋品質改善（楽天API厳格検証+高速化）
+## [2026-03-09] — 楽天API主軸アーキテクチャ（抜本的リファクタリング）
 
-### ✨ Architecture Overhaul (架空本完全排除 + 速度最適化)
-- **楽天ブックスAPI必須検証**: 実在確認+表紙画像取得が必須。架空本の表示を根絶
-- **AI候補9冊→楽天検証→通過3冊のみ表示**: Gemini 2.5 Flash（クオリティ維持）
-- **Progressive Verification Architecture**:
-  - バッチ1: AI選書 + 楽天逐次検証 → 3冊表示 + 残り未検証候補をフロントに返却
-  - バッチ2/3: **AIコール完全スキップ** → 残り候補の楽天検証のみで超高速
-- **3段階楽天検索**: ISBN検索(Stage0) → title+author(Stage1) → title-only(Stage2)
-- **グローバルレートリミッター**: `rateLimitedRakutenFetch`で全APIコール間に1.2秒自動保証
-- **pendingCandidatesサニタイズ**: 悪意あるペイロード対策
-- **Vercelログ最適化**: `[V]`/`[R]`プレフィックスで簡潔なログ出力
+### 🏗️ Architecture: Rakuten-First Data Source
+- **titleMatch/Levenshtein照合を完全廃止**: 楽天検索エンジンの精度を100%信用し、Items[0]を無条件採用
+- **ISBN優先3段階検索**: ISBN → title+author → title-only のカスケード
+- **楽天公式データによる完全上書き**: title/author/isbn/coverUrl/rakutenUrlをすべて楽天データで上書き
+- **AmazonリンクISBN化**: 楽天から取得した正確なISBNでピンポイント検索（CVR向上）
+- **新APIエンドポイント**: `openapi.rakuten.co.jp` + `accessKey`パラメータ対応
+- **Google Booksフォールバック廃止**: 楽天一本化でデータ品質統一
+- **旧バージョン**: `git checkout pre-rakuten-refactor` で復元可能
+
+## [2026-03-08] — 選書アーキテクチャ改善（楽天API厳格検証+高速化）
+
+### ✨ Progressive Verification Architecture
+- AI候補9冊→楽天逐次検証→通過3冊のみ表示
+- バッチ2/3: pendingCandidatesでAIコールスキップ（超高速）
+- pendingCandidates枯渇時はexcludeTitles付きAI再呼出しフォールバック
 
 ## [2026-03-08] — /api/recommend 500エラー修正
 
