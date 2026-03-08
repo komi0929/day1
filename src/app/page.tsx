@@ -806,11 +806,11 @@ function WaitingScreen({ fragments, currentFragment, fragmentVisible }: {
       <div className="max-w-lg w-full text-center">
         <div className="mb-8">
           <div className="book-pulse mx-auto mb-8"><div className="book-spine" /></div>
-          <p className="text-sm font-medium mb-1 transition-all duration-700" style={{ color: 'var(--color-text-muted)' }}>
+          <p className="text-sm font-medium mb-2 transition-all duration-700" style={{ color: 'var(--color-text-muted)' }}>
             {stage.message}
           </p>
-          <p className="text-[11px] transition-all duration-700" style={{ color: 'var(--color-text-dim)' }}>
-            {stage.sub}
+          <p className="text-[11px]" style={{ color: 'var(--color-text-dim)', opacity: 0.6 }}>
+            30秒ほどお待ちください
           </p>
         </div>
 
