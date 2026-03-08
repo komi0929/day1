@@ -314,19 +314,22 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
     console.log(`[Recommend] AI returned ${books.length} candidates. Verifying against Rakuten API...`);
 
     // ──────────────────────────────────────────────
-    // Phase 2: 楽天API並列検証 — 全候補を同時に検証し、速度を最大化
+    // Phase 2: 楽天API逐次検証（レートリミット対応: 1req/sec）
+    // AIの推薦順で1冊ずつ検証し、BOOK_COUNT冊揃ったら即終了（真の早期リターン）
     // ──────────────────────────────────────────────
-    const verificationResults = await Promise.all(
-      books.map(async (book) => {
-        const result = await verifyWithRakuten(book.title, book.author);
-        return { book, result };
-      })
-    );
-
-    // Phase 3: AIの推薦順序を維持したまま、楽天で検証+表紙取得できたものだけ採用
     const verifiedBooks: BookResult[] = [];
-    for (const { book, result } of verificationResults) {
-      if (!result.verified || !result.coverUrl) continue;  // 楽天未検証 or 表紙なし → 除外
+    for (let i = 0; i < books.length; i++) {
+      if (verifiedBooks.length >= BOOK_COUNT) break;  // 必要数に達したら残りはスキップ
+
+      const book = books[i];
+      
+      // 楽天APIレートリミット対応: 2冊目以降は1秒待つ
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 1100));
+      }
+
+      const result = await verifyWithRakuten(book.title, book.author);
+      if (!result.verified || !result.coverUrl) continue;  // 楽天未検証 or 表紙なし → 次の候補へ
       
       const finalTitle = result.verifiedTitle || book.title;
       const finalAuthor = result.verifiedAuthor || book.author;
@@ -340,13 +343,12 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
         rakutenUrl: result.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
       });
 
-      if (verifiedBooks.length >= BOOK_COUNT) break;  // 必要数に達したら終了
+      console.log(`[Verify] ✅ ${verifiedBooks.length}/${BOOK_COUNT} verified: "${finalTitle}"`);
     }
 
     console.log(`[Verify] AI ${books.length}冊 → 楽天検証通過 ${verifiedBooks.length}冊 / 必要 ${BOOK_COUNT}冊`);
 
     if (verifiedBooks.length === 0) {
-      // 楽天で1冊も検証できなかった場合のフォールバック
       console.error('[Verify] No books passed Rakuten verification');
       return NextResponse.json(
         { error: 'RECOMMEND_FAILED', message: 'ごめんなさい、条件に合う本が見つかりませんでした。もう一度お試しください。' },
