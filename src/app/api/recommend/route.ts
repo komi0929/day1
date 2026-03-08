@@ -106,11 +106,10 @@ async function verifyAndEnrich(
   };
 
   const appId = process.env.RAKUTEN_APP_ID || '';
-  const accessKey = process.env.RAKUTEN_ACCESS_KEY || '';
   const affId = process.env.RAKUTEN_AFFILIATE_ID || '';
-  if (!appId || !accessKey) return empty;
+  if (!appId) return empty;
 
-  const base = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${appId}&accessKey=${accessKey}&hits=3&format=json${affId ? `&affiliateId=${affId}` : ''}`;
+  const base = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${appId}&hits=5&format=json${affId ? `&affiliateId=${affId}` : ''}`;
 
   // ── フェーズ1: ISBN検索（最速・最精度） ──
   if (aiIsbn && /^\d{13}$/.test(aiIsbn)) {
