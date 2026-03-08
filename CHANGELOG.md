@@ -1,5 +1,14 @@
 # Changelog
 
+## [2026-03-08] — /api/recommend 500エラー修正
+
+### 🐛 Critical Fix (本番API完全停止の修復)
+- **根本原因**: Google Search Groundingが応答時間を30秒超に膨張させ、Vercelの10秒タイムアウトで500エラー
+- **Google Search Grounding廃止**: `tools: [{ googleSearch: {} }]`を削除し、JSON mode (`responseMimeType: 'application/json'`) に切替。応答時間30秒→10秒に短縮
+- **Vercel maxDuration設定**: `vercel.json`にrecommend: 60秒、heart-profile: 30秒のタイムアウト設定を追加
+- **検証フィルタ修正**: 表紙画像APIで検証できなかった書籍も除外せず返却するよう変更（ユーザー体験優先）
+- **JSON解析エラーハンドリング強化**: AI応答のparse失敗時に明確なエラーメッセージを返却
+
 ## [2026-03-07] — 表紙画像取得: 5段階カスケード + 2段階タイトル照合
 
 ### 🔧 Architecture Overhaul (表紙画像100%正確化)
