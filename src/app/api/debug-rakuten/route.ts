@@ -44,6 +44,8 @@ export async function GET(req: Request) {
       items,
       appIdSet: !!rakutenAppId,
       affIdSet: !!rakutenAffId,
+      appIdLength: rakutenAppId.length,
+      rawBody: statusCode !== 200 ? body.slice(0, 500) : undefined,
     });
   } catch (e) {
     return NextResponse.json({ error: String(e), searchTitle: title, appIdSet: !!rakutenAppId });
