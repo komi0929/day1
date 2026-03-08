@@ -167,24 +167,30 @@ export default function Home() {
     setLoading(false);
   };
 
-  /* ─── Load next 3 books（pendingCandidates活用 → AIスキップで超高速） ─── */
+  /* ─── Load next 3 books（pendingCandidates優先 → 不足時はAI再呼出し） ─── */
   const loadNextBatch = useCallback(async (isBackgroundPreload: boolean = false) => {
     if (searchingMore || bookBatches.length >= maxBatches) return;
-    // 未検証候補がなければスキップ（追加AI呼び出しはしない）
-    if (pendingCandidatesRef.current.length === 0) return;
     setSearchingMore(true);
-    track('load_more', { currentBatchCount: bookBatches.length, pendingCount: pendingCandidatesRef.current.length });
 
     const { body, title } = noteDataRef.current;
+    const existingTitles = bookBatches.flat().map(b => b.title);
 
     const timer = startTimer();
-    track('recommend_start', { phase: bookBatches.length + 1, mode: 'pending_verify' });
-    // pendingCandidatesを渡す → APIはAI呼び出しをスキップして楽天検証のみ
-    const result = await fetchBooks(body, title, [], false, pendingCandidatesRef.current);
+    let result: FetchBooksResult | null = null;
+
+    if (pendingCandidatesRef.current.length > 0) {
+      // Mode A: pendingCandidatesあり → AIスキップ（超高速）
+      track('recommend_start', { phase: bookBatches.length + 1, mode: 'pending_verify' });
+      result = await fetchBooks(body, title, existingTitles, false, pendingCandidatesRef.current);
+    } else {
+      // Mode B: pendingCandidates枯渇 → 新しいAI呼び出し
+      track('recommend_start', { phase: bookBatches.length + 1, mode: 'new_ai_call' });
+      result = await fetchBooks(body, title, existingTitles, false);
+    }
+
     if (result && result.books.length > 0) {
       const thumbnailHits = result.books.filter((b: BookResult) => b.thumbnail).length;
       track('recommend_complete', { phase: bookBatches.length + 1, bookCount: result.books.length, durationMs: timer(), thumbnailHits });
-      // 残りの未検証候補を更新
       pendingCandidatesRef.current = result.pendingCandidates || [];
       setBookBatches(prev => {
         const newBatches = [...prev, result.books];
