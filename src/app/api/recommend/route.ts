@@ -96,6 +96,21 @@ function titleMatch(aiTitle: string, apiTitle: string): boolean {
 }
 
 /**
+ * 楽天APIグローバルレートリミッター
+ * Rakuten APIの制限（1リクエスト/秒/アプリID）を全APIコールで共有
+ */
+let lastRakutenCallTime = 0;
+async function rateLimitedRakutenFetch(url: string): Promise<Response> {
+  const now = Date.now();
+  const elapsed = now - lastRakutenCallTime;
+  if (elapsed < 1200) {
+    await new Promise(resolve => setTimeout(resolve, 1200 - elapsed));
+  }
+  lastRakutenCallTime = Date.now();
+  return fetch(url, { signal: AbortSignal.timeout(5000) });
+}
+
+/**
  * 楽天APIレスポンスからタイトル照合 + 表紙取得を試みるヘルパー
  */
 function extractVerifiedFromRakutenItems(
@@ -155,7 +170,7 @@ async function verifyWithRakuten(title: string, author: string): Promise<Rakuten
   // ── Stage 1: タイトル + 著者名で検索（精度重視） ──
   try {
     const url1 = `${baseUrl}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
-    const res1 = await fetch(url1, { signal: AbortSignal.timeout(5000) });
+    const res1 = await rateLimitedRakutenFetch(url1);
     if (res1.ok) {
       const data1 = await res1.json();
       const items1 = data1?.Items;
@@ -177,7 +192,7 @@ async function verifyWithRakuten(title: string, author: string): Promise<Rakuten
   // ── Stage 2: タイトルのみで検索（著者名フォーマット不一致の救済） ──
   try {
     const url2 = `${baseUrl}&title=${encodeURIComponent(title)}`;
-    const res2 = await fetch(url2, { signal: AbortSignal.timeout(5000) });
+    const res2 = await rateLimitedRakutenFetch(url2);
     if (res2.ok) {
       const data2 = await res2.json();
       const items2 = data2?.Items;
@@ -214,11 +229,7 @@ async function verifyBooksSequentially(
     if (verified.length >= needed) break;
     lastCheckedIdx = i;
 
-    // 楽天APIレートリミット対応: 2冊目以降は1.1秒待つ
-    if (i > 0) {
-      await new Promise(resolve => setTimeout(resolve, 1100));
-    }
-
+    // レートリミットはrateLimitedRakutenFetchが自動制御
     const book = candidates[i];
     const result = await verifyWithRakuten(book.title, book.author);
     if (!result.verified || !result.coverUrl) {
