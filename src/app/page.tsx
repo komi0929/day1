@@ -52,9 +52,19 @@ export default function Home() {
 
   // Phase 2/3 data ref
   const noteDataRef = useRef<{ body: string; title: string }>({ body: '', title: '' });
+  // 楽天未検証の残り候補（AIスキップ用）
+  const pendingCandidatesRef = useRef<unknown[]>([]);
 
   /* ─── API call helper ─── */
-  const fetchBooks = useCallback(async (body: string, title: string, excludeTitles: string[], includeFragments: boolean): Promise<{ books: BookResult[]; fragments: string[] } | null> => {
+  interface FetchBooksResult {
+    books: BookResult[];
+    fragments: string[];
+    pendingCandidates?: unknown[];
+  }
+  const fetchBooks = useCallback(async (
+    body: string, title: string, excludeTitles: string[],
+    includeFragments: boolean, pendingCandidates?: unknown[]
+  ): Promise<FetchBooksResult | null> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
 
@@ -62,7 +72,7 @@ export default function Home() {
       const res = await fetch('/api/recommend', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ body, title, excludeTitles, includeFragments }),
+        body: JSON.stringify({ body, title, excludeTitles, includeFragments, pendingCandidates }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -129,6 +139,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     noteDataRef.current = { body, title };
+    pendingCandidatesRef.current = [];
     setBookBatches([]);
     setCurrentBatch(0);
     setMaxViewedBatch(0);
@@ -140,6 +151,8 @@ export default function Home() {
     if (result && result.books.length > 0) {
       const thumbnailHits = result.books.filter((b: BookResult) => b.thumbnail).length;
       track('recommend_complete', { phase: 1, bookCount: result.books.length, durationMs: timer(), thumbnailHits });
+      // 未検証の残り候補を保存（バッチ2/3でAIスキップするため）
+      pendingCandidatesRef.current = result.pendingCandidates || [];
       setBookBatches([result.books]);
       setFragments(result.fragments || []);
       setCurrentBatch(0);
@@ -154,25 +167,28 @@ export default function Home() {
     setLoading(false);
   };
 
-  /* ─── Load next 3 books ─── */
+  /* ─── Load next 3 books（pendingCandidates活用 → AIスキップで超高速） ─── */
   const loadNextBatch = useCallback(async (isBackgroundPreload: boolean = false) => {
     if (searchingMore || bookBatches.length >= maxBatches) return;
+    // 未検証候補がなければスキップ（追加AI呼び出しはしない）
+    if (pendingCandidatesRef.current.length === 0) return;
     setSearchingMore(true);
-    track('load_more', { currentBatchCount: bookBatches.length });
+    track('load_more', { currentBatchCount: bookBatches.length, pendingCount: pendingCandidatesRef.current.length });
 
     const { body, title } = noteDataRef.current;
-    const allExisting = bookBatches.flat().map(b => b.title);
 
     const timer = startTimer();
-    track('recommend_start', { phase: bookBatches.length + 1, excludeCount: allExisting.length });
-    const result = await fetchBooks(body, title, allExisting, false);
+    track('recommend_start', { phase: bookBatches.length + 1, mode: 'pending_verify' });
+    // pendingCandidatesを渡す → APIはAI呼び出しをスキップして楽天検証のみ
+    const result = await fetchBooks(body, title, [], false, pendingCandidatesRef.current);
     if (result && result.books.length > 0) {
       const thumbnailHits = result.books.filter((b: BookResult) => b.thumbnail).length;
       track('recommend_complete', { phase: bookBatches.length + 1, bookCount: result.books.length, durationMs: timer(), thumbnailHits });
+      // 残りの未検証候補を更新
+      pendingCandidatesRef.current = result.pendingCandidates || [];
       setBookBatches(prev => {
         const newBatches = [...prev, result.books];
         if (!isBackgroundPreload) {
-          // Auto-navigate only if user actively clicked
           setCurrentBatch(newBatches.length - 1);
           setMaxViewedBatch(newBatches.length - 1);
           setCurrentCard(0);

@@ -26,7 +26,7 @@ function buildSystemPrompt() {
 labelはユーザーがこの本を読みたいと思うための**アイキャッチの一文**です。
 - noteの文章に使われている具体的な言葉・表現を必ず引用または言い換えて使う
 - 書籍の内容要約ではなく、「ユーザーの状況 × この本」の交差点にある一言
-- 例: 「\\\"売上が立たない\\\"あなたに必要な視点」「迷いの正体を教えてくれる一冊」「\\\"もう一人でいい\\\"と思えた時に読む本」
+- 例: 「\\\\"売上が立たない\\\\"あなたに必要な視点」「迷いの正体を教えてくれる一冊」「\\\\"もう一人でいい\\\\"と思えた時に読む本」
 - 短く刺さる表現（15〜30字）
 
 ## 出力JSON
@@ -78,9 +78,7 @@ function titleMatch(aiTitle: string, apiTitle: string): boolean {
   const a = normTitle(aiTitle), b = normTitle(apiTitle);
   if (!a || !b) return false;
   if (a === b) return true;
-  // 包含チェック（3文字以上で一方が他方を完全含む場合のみ）
   if (a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a))) return true;
-  // Levenshtein距離ベースの類似度 (70%以上を要求)
   const maxLen = Math.max(a.length, b.length);
   if (maxLen === 0) return false;
   const m = a.length, n = b.length;
@@ -103,7 +101,6 @@ function titleMatch(aiTitle: string, apiTitle: string): boolean {
  * 【厳格ルール】
  * - 楽天ブックスAPIでタイトル照合が通り、かつ表紙画像が取得できた場合のみ verified: true
  * - 表紙画像がない場合は verified: false（フロントに表示しない）
- * - Google Books / openBD フォールバックは行わない（楽天のみで判定）
  */
 async function verifyWithRakuten(title: string, author: string): Promise<RakutenVerifyResult> {
   const empty: RakutenVerifyResult = { coverUrl: '', rakutenUrl: '', verifiedTitle: '', verifiedAuthor: '', verified: false };
@@ -119,7 +116,7 @@ async function verifyWithRakuten(title: string, author: string): Promise<Rakuten
     const q = encodeURIComponent(title);
     const a = encodeURIComponent(author);
     const url = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&title=${q}&author=${a}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) {
       console.log(`[Verify] Rakuten HTTP ${res.status} for "${title}"`);
       return empty;
@@ -141,14 +138,13 @@ async function verifyWithRakuten(title: string, author: string): Promise<Rakuten
         continue;
       }
 
-      // 表紙画像の取得（必須）
       const coverUrl = (item.largeImageUrl || item.mediumImageUrl || '')
         .replace('?_ex=200x200', '?_ex=300x300')
         .replace('?_ex=120x120', '?_ex=300x300');
 
       if (!coverUrl) {
         console.log(`[Verify] Rakuten title match but NO COVER: "${title}" → "${apiTitle}"`);
-        continue;  // 表紙なしは不合格
+        continue;
       }
 
       const purchaseUrl = item.affiliateUrl || item.itemUrl || '';
@@ -171,12 +167,58 @@ async function verifyWithRakuten(title: string, author: string): Promise<Rakuten
   }
 }
 
+/**
+ * 楽天API逐次検証（レートリミット対応: 1req/sec）
+ * AIの推薦順で1冊ずつ検証し、needed冊揃った時点で即終了（真の早期リターン）。
+ * 残りの未検証候補はpendingCandidatesとして返す。
+ */
+async function verifyBooksSequentially(
+  candidates: BookFromAI[],
+  needed: number
+): Promise<{ verified: BookResult[]; remaining: BookFromAI[] }> {
+  const verified: BookResult[] = [];
+  let lastCheckedIdx = -1;
+
+  for (let i = 0; i < candidates.length; i++) {
+    if (verified.length >= needed) break;
+    lastCheckedIdx = i;
+
+    // 楽天APIレートリミット対応: 2冊目以降は1.1秒待つ
+    if (i > 0) {
+      await new Promise(resolve => setTimeout(resolve, 1100));
+    }
+
+    const book = candidates[i];
+    const result = await verifyWithRakuten(book.title, book.author);
+    if (!result.verified || !result.coverUrl) {
+      console.log(`[Verify] ❌ #${i + 1} "${book.title}" — not verified`);
+      continue;
+    }
+
+    const finalTitle = result.verifiedTitle || book.title;
+    const finalAuthor = result.verifiedAuthor || book.author;
+
+    verified.push({
+      ...book,
+      title: finalTitle,
+      author: finalAuthor,
+      thumbnail: result.coverUrl,
+      amazonUrl: generateAmazonUrl(finalTitle, finalAuthor),
+      rakutenUrl: result.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
+    });
+    console.log(`[Verify] ✅ ${verified.length}/${needed} verified: "${finalTitle}"`);
+  }
+
+  // 未検証の残り候補をフロントに返す（次のバッチで使用）
+  const remaining = candidates.slice(lastCheckedIdx + 1);
+  return { verified, remaining };
+}
 
 
 export async function POST(req: Request) {
   try {
     const contentLength = req.headers.get('content-length');
-    if (contentLength && parseInt(contentLength) > 16384) {
+    if (contentLength && parseInt(contentLength) > 32768) {
       return NextResponse.json(
         { error: 'PAYLOAD_TOO_LARGE', message: 'リクエストが大きすぎます。' },
         { status: 413 }
@@ -192,52 +234,61 @@ export async function POST(req: Request) {
       );
     }
 
-    const { body: noteBody, title: noteTitle, excludeTitles, includeFragments } = await req.json();
+    const { body: noteBody, title: noteTitle, excludeTitles, includeFragments, pendingCandidates } = await req.json();
 
-    if (!noteBody || typeof noteBody !== 'string' || noteBody.trim().length < 50) {
-      return NextResponse.json(
-        { error: 'VALIDATION_ERROR', message: 'もう少しだけ文章を教えてください（50文字以上お願いします）' },
-        { status: 400 }
-      );
-    }
+    // ──────────────────────────────────────────────
+    // Mode A: pendingCandidates あり → AIスキップ、残り候補の検証のみ
+    // Mode B: pendingCandidates なし → AI選書 + 楽天検証
+    // ──────────────────────────────────────────────
+    let candidates: BookFromAI[];
+    let fragments: string[] = [];
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'SERVER_CONFIG_ERROR', message: '申し訳ありません、ただいま準備中です。' },
-        { status: 500 }
-      );
-    }
+    if (pendingCandidates && Array.isArray(pendingCandidates) && pendingCandidates.length > 0) {
+      // ── Mode A: AI呼び出しスキップ（バッチ2/3用。超高速） ──
+      console.log(`[Recommend] Mode A: Using ${pendingCandidates.length} pending candidates (AI skipped)`);
+      candidates = pendingCandidates;
+    } else {
+      // ── Mode B: AI選書 + 楽天検証（バッチ1用） ──
+      if (!noteBody || typeof noteBody !== 'string' || noteBody.trim().length < 50) {
+        return NextResponse.json(
+          { error: 'VALIDATION_ERROR', message: 'もう少しだけ文章を教えてください（50文字以上お願いします）' },
+          { status: 400 }
+        );
+      }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: 'SERVER_CONFIG_ERROR', message: '申し訳ありません、ただいま準備中です。' },
+          { status: 500 }
+        );
+      }
 
-    // JSON mode — Gemini 2.5 Flash（選書クオリティ最優先）
-    // Google Search Groundingは応答時間が30秒超になるため廃止
-    // 実在検証は楽天ブックスAPIで厳格に行う
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 16384,
-        responseMimeType: 'application/json',
-      },
-    });
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 16384,
+          responseMimeType: 'application/json',
+        },
+      });
 
-    // Heart profile context
-    let pastContext = '';
-    const authHeader = req.headers.get('authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      const authToken = authHeader.replace('Bearer ', '');
-      try {
-        const supabase = createAuthClient(authToken);
-        if (supabase) {
-          const { data: profiles } = await supabase
-            .from('heart_profiles')
-            .select('summary, created_at')
-            .order('created_at', { ascending: false })
-            .limit(5);
-          if (profiles && profiles.length > 0) {
-            pastContext = `\n\n## 過去の心のカルテ（あなたはこのユーザーを見守り続ける専属の編集者です）
+      // Heart profile context
+      let pastContext = '';
+      const authHeader = req.headers.get('authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const authToken = authHeader.replace('Bearer ', '');
+        try {
+          const supabase = createAuthClient(authToken);
+          if (supabase) {
+            const { data: profiles } = await supabase
+              .from('heart_profiles')
+              .select('summary, created_at')
+              .order('created_at', { ascending: false })
+              .limit(5);
+            if (profiles && profiles.length > 0) {
+              pastContext = `\n\n## 過去の心のカルテ（あなたはこのユーザーを見守り続ける専属の編集者です）
 以下は過去のセッションから読み取ったユーザーの心の記録です。
 
 ${profiles.map((p, i) => `[${i + 1}] ${new Date(p.created_at).toLocaleDateString('ja-JP')}:\n${p.summary}`).join('\n\n')}
@@ -247,22 +298,22 @@ ${profiles.map((p, i) => `[${i + 1}] ${new Date(p.created_at).toLocaleDateString
 - 例：「前回は〇〇について立ち止まっておられましたが、今日は少し視線が変わりましたね」「あの時の言葉を経て、今があるのですね」
 - ただし「解決した」等と勝手に断定せず、どんな話題の転換も肯定的に受け止める表現にすること
 - 初回利用の場合（カルテが0件）はこの指示を無視してください`;
+            }
           }
+        } catch (e) {
+          console.error('Failed to fetch heart profiles:', e);
         }
-      } catch (e) {
-        console.error('Failed to fetch heart profiles:', e);
       }
-    }
 
-    // Exclusion list
-    let exclusionNote = '';
-    if (excludeTitles && Array.isArray(excludeTitles) && excludeTitles.length > 0) {
-      exclusionNote = `\n\n【除外する書籍】以下は既に推薦済みです。絶対に重複しないでください：\n${excludeTitles.map((t: string) => `- ${t}`).join('\n')}`;
-    }
+      // Exclusion list
+      let exclusionNote = '';
+      if (excludeTitles && Array.isArray(excludeTitles) && excludeTitles.length > 0) {
+        exclusionNote = `\n\n【除外する書籍】以下は既に推薦済みです。絶対に重複しないでください：\n${excludeTitles.map((t: string) => `- ${t}`).join('\n')}`;
+      }
 
-    const wantFragments = includeFragments !== false;
+      const wantFragments = includeFragments !== false;
 
-    const userPrompt = `以下のnote記事を深く読み解き、この筆者が「今まさに読むべき一冊」を${AI_REQUEST_COUNT}冊推薦してください。
+      const userPrompt = `以下のnote記事を深く読み解き、この筆者が「今まさに読むべき一冊」を${AI_REQUEST_COUNT}冊推薦してください。
 候補は多めに出してください。この中から楽天ブックスAPIで実在確認できたものだけを採用します。
 
 ━━━━━━━━━━━━━━━━
@@ -284,71 +335,43 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
 
 指定されたJSON形式のみ出力してください。`;
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      systemInstruction: { role: 'model', parts: [{ text: buildSystemPrompt() + pastContext }] },
-    });
-
-    const rawText = result.response.text();
-
-    // Parse JSON from response (JSON mode should return clean JSON, but handle edge cases)
-    let jsonText = rawText;
-    const fenceMatch = rawText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    if (fenceMatch) jsonText = fenceMatch[1];
-
-    if (!jsonText.trim().startsWith('{')) {
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) jsonText = jsonMatch[0];
-    }
-
-    let aiResult;
-    try {
-      aiResult = JSON.parse(jsonText.trim());
-    } catch {
-      console.error('[Recommend] JSON parse failed. Raw text:', rawText.slice(0, 500));
-      throw new Error('AIの応答を解析できませんでした');
-    }
-    const books: BookFromAI[] = aiResult.books || [];
-    const fragments: string[] = aiResult.fragments || [];
-
-    console.log(`[Recommend] AI returned ${books.length} candidates. Verifying against Rakuten API...`);
-
-    // ──────────────────────────────────────────────
-    // Phase 2: 楽天API逐次検証（レートリミット対応: 1req/sec）
-    // AIの推薦順で1冊ずつ検証し、BOOK_COUNT冊揃ったら即終了（真の早期リターン）
-    // ──────────────────────────────────────────────
-    const verifiedBooks: BookResult[] = [];
-    for (let i = 0; i < books.length; i++) {
-      if (verifiedBooks.length >= BOOK_COUNT) break;  // 必要数に達したら残りはスキップ
-
-      const book = books[i];
-      
-      // 楽天APIレートリミット対応: 2冊目以降は1秒待つ
-      if (i > 0) {
-        await new Promise(resolve => setTimeout(resolve, 1100));
-      }
-
-      const result = await verifyWithRakuten(book.title, book.author);
-      if (!result.verified || !result.coverUrl) continue;  // 楽天未検証 or 表紙なし → 次の候補へ
-      
-      const finalTitle = result.verifiedTitle || book.title;
-      const finalAuthor = result.verifiedAuthor || book.author;
-      
-      verifiedBooks.push({
-        ...book,
-        title: finalTitle,
-        author: finalAuthor,
-        thumbnail: result.coverUrl,
-        amazonUrl: generateAmazonUrl(finalTitle, finalAuthor),
-        rakutenUrl: result.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        systemInstruction: { role: 'model', parts: [{ text: buildSystemPrompt() + pastContext }] },
       });
 
-      console.log(`[Verify] ✅ ${verifiedBooks.length}/${BOOK_COUNT} verified: "${finalTitle}"`);
+      const rawText = result.response.text();
+
+      // Parse JSON
+      let jsonText = rawText;
+      const fenceMatch = rawText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+      if (fenceMatch) jsonText = fenceMatch[1];
+      if (!jsonText.trim().startsWith('{')) {
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) jsonText = jsonMatch[0];
+      }
+
+      let aiResult;
+      try {
+        aiResult = JSON.parse(jsonText.trim());
+      } catch {
+        console.error('[Recommend] JSON parse failed. Raw text:', rawText.slice(0, 500));
+        throw new Error('AIの応答を解析できませんでした');
+      }
+      candidates = aiResult.books || [];
+      fragments = wantFragments ? (aiResult.fragments || []) : [];
+      console.log(`[Recommend] Mode B: AI returned ${candidates.length} candidates`);
     }
 
-    console.log(`[Verify] AI ${books.length}冊 → 楽天検証通過 ${verifiedBooks.length}冊 / 必要 ${BOOK_COUNT}冊`);
+    // ──────────────────────────────────────────────
+    // 楽天API逐次検証 — 3冊揃ったら即レスポンス
+    // 残りの未検証候補はpendingCandidatesとして返す
+    // ──────────────────────────────────────────────
+    const { verified, remaining } = await verifyBooksSequentially(candidates, BOOK_COUNT);
 
-    if (verifiedBooks.length === 0) {
+    console.log(`[Result] 検証通過 ${verified.length}冊 / 必要 ${BOOK_COUNT}冊 | 未検証残り ${remaining.length}冊`);
+
+    if (verified.length === 0) {
       console.error('[Verify] No books passed Rakuten verification');
       return NextResponse.json(
         { error: 'RECOMMEND_FAILED', message: 'ごめんなさい、条件に合う本が見つかりませんでした。もう一度お試しください。' },
@@ -357,8 +380,10 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
     }
 
     return NextResponse.json({
-      books: verifiedBooks,
-      fragments: wantFragments ? fragments : [],
+      books: verified,
+      fragments,
+      // 未検証の残り候補をフロントに返す → 次のバッチでAIコール不要
+      pendingCandidates: remaining,
     });
   } catch (error: unknown) {
     console.error('Recommend API error:', error);
@@ -375,7 +400,6 @@ function generateAmazonUrl(title: string, author: string): string {
   return `https://www.amazon.co.jp/s?k=${query}&tag=${tag}`;
 }
 
-/** 楽天ブックス検索URLを生成（APIで直接リンクが取得できなかった場合のフォールバック） */
 function generateRakutenUrl(title: string, author: string): string {
   const query = encodeURIComponent(`${title} ${author}`);
   const affId = process.env.RAKUTEN_AFFILIATE_ID || '';
