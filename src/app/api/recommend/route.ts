@@ -109,15 +109,16 @@ function titleMatch(aiTitle: string, apiTitle: string): boolean {
 async function getBookCover(title: string, author: string): Promise<CoverResult> {
   const empty: CoverResult = { coverUrl: '', rakutenUrl: '', verifiedTitle: '', verifiedAuthor: '', verified: false };
 
-  // ── Stage 1: 楽天ブックスAPI ──
+  // ── Stage 1: 楽天ブックスAPI（新API仕様: openapi.rakuten.co.jp + accessKey） ──
   const rakutenAppId = process.env.RAKUTEN_APP_ID || '';
+  const rakutenAccessKey = process.env.RAKUTEN_ACCESS_KEY || '';
   const rakutenAffId = process.env.RAKUTEN_AFFILIATE_ID || '';
-  if (rakutenAppId) {
+  if (rakutenAppId && rakutenAccessKey) {
     try {
       const q = encodeURIComponent(title);
       const a = encodeURIComponent(author);
-      const rakutenUrl = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&title=${q}&author=${a}&hits=3&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
-      const res = await fetch(rakutenUrl, { signal: AbortSignal.timeout(3000) });
+      const rakutenUrl = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&accessKey=${rakutenAccessKey}&title=${q}&author=${a}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
+      const res = await fetch(rakutenUrl, { signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         const data = await res.json();
         const items = data?.Items;
