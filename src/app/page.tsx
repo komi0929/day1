@@ -594,7 +594,17 @@ export default function Home() {
       {showHomeWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'rgba(44,37,32,0.4)', backdropFilter: 'blur(8px)' }}>
           <div className="card p-8 max-w-sm w-full text-center fade-in-up">
-            <div className="text-4xl mb-4">🧭</div>
+            <div className="mx-auto mb-4 w-14 h-14 flex items-center justify-center rounded-full"
+              style={{ background: 'linear-gradient(135deg, rgba(232,101,90,0.18), rgba(242,168,124,0.22))' }}>
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs><linearGradient id="hwg" x1="8" y1="4" x2="40" y2="44" gradientUnits="userSpaceOnUse"><stop offset="0%" stopColor="#E8655A" /><stop offset="100%" stopColor="#F2A87C" /></linearGradient></defs>
+                <circle cx="24" cy="24" r="22" stroke="url(#hwg)" strokeWidth="1.5" opacity="0.6" />
+                <polygon points="24,4 20.5,24 24,21 27.5,24" fill="url(#hwg)" />
+                <polygon points="24,44 20.5,24 24,27 27.5,24" fill="#C4B4A0" opacity="0.8" />
+                <circle cx="24" cy="24" r="3" fill="url(#hwg)" />
+                <circle cx="24" cy="24" r="1.5" fill="white" opacity="0.7" />
+              </svg>
+            </div>
             <p className="text-sm leading-loose mb-2 font-bold" style={{ color: 'var(--color-text)' }}>
               ホームに戻りますか？
             </p>
