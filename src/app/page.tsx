@@ -371,7 +371,7 @@ export default function Home() {
                 <div className="mx-auto mb-5 w-20 h-20 flex items-center justify-center rounded-full"
                   style={{ background: 'linear-gradient(135deg, rgba(232,101,90,0.18), rgba(242,168,124,0.22))', boxShadow: '0 6px 28px rgba(232,101,90,0.18)' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/compass-icon.png" alt="compass" width={48} height={48} style={{ objectFit: 'contain' }} />
+                  <img src="/favicon.svg" alt="compass" width={48} height={48} style={{ objectFit: 'contain' }} />
                 </div>
                 <h1 className="text-3xl md:text-4xl font-black text-gradient tracking-tight mb-4">compass</h1>
                 <p className="text-sm leading-[1.9] max-w-sm mx-auto" style={{ color: 'var(--color-text-muted)' }}>
