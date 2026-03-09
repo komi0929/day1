@@ -370,28 +370,8 @@ export default function Home() {
               <div className="mb-10 fade-in-up">
                 <div className="mx-auto mb-5 w-20 h-20 flex items-center justify-center rounded-full"
                   style={{ background: 'linear-gradient(135deg, rgba(232,101,90,0.18), rgba(242,168,124,0.22))', boxShadow: '0 6px 28px rgba(232,101,90,0.18)' }}>
-                  <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <linearGradient id="cg" x1="8" y1="4" x2="40" y2="44" gradientUnits="userSpaceOnUse">
-                        <stop offset="0%" stopColor="#E8655A" />
-                        <stop offset="100%" stopColor="#F2A87C" />
-                      </linearGradient>
-                    </defs>
-                    {/* Outer ring */}
-                    <circle cx="24" cy="24" r="22" stroke="url(#cg)" strokeWidth="1.5" opacity="0.6" />
-                    {/* Cardinal ticks */}
-                    <line x1="24" y1="2" x2="24" y2="7" stroke="url(#cg)" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
-                    <line x1="24" y1="41" x2="24" y2="46" stroke="url(#cg)" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
-                    <line x1="2" y1="24" x2="7" y2="24" stroke="url(#cg)" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
-                    <line x1="41" y1="24" x2="46" y2="24" stroke="url(#cg)" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
-                    {/* N needle — warm gradient, bold */}
-                    <polygon points="24,4 20.5,24 24,21 27.5,24" fill="url(#cg)" />
-                    {/* S needle — muted but visible */}
-                    <polygon points="24,44 20.5,24 24,27 27.5,24" fill="#C4B4A0" opacity="0.8" />
-                    {/* Center jewel */}
-                    <circle cx="24" cy="24" r="3" fill="url(#cg)" />
-                    <circle cx="24" cy="24" r="1.5" fill="white" opacity="0.7" />
-                  </svg>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/compass-icon.png" alt="compass" width={48} height={48} style={{ objectFit: 'contain' }} />
                 </div>
                 <h1 className="text-3xl md:text-4xl font-black text-gradient tracking-tight mb-4">compass</h1>
                 <p className="text-sm leading-[1.9] max-w-sm mx-auto" style={{ color: 'var(--color-text-muted)' }}>
