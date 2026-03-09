@@ -187,6 +187,12 @@ export default function Home() {
       // Mode A: pendingCandidatesあり → AIスキップ（超高速）
       track('recommend_start', { phase: bookBatches.length + 1, mode: 'pending_verify' });
       result = await fetchBooks(body, title, existingTitles, false, pendingCandidatesRef.current);
+      // Mode A失敗 → Mode Bにフォールバック
+      if (!result || result.books.length === 0) {
+        pendingCandidatesRef.current = [];
+        track('recommend_start', { phase: bookBatches.length + 1, mode: 'fallback_ai_call' });
+        result = await fetchBooks(body, title, existingTitles, false);
+      }
     } else {
       // Mode B: pendingCandidates枯渇 → 新しいAI呼び出し
       track('recommend_start', { phase: bookBatches.length + 1, mode: 'new_ai_call' });
