@@ -84,18 +84,57 @@ interface RakutenItem {
   itemUrl?: string;
 }
 
-/** 楽天APIレスポンスの最初のItemを安全に抽出 */
-function safeExtractRakutenItem(data: unknown): RakutenItem | null {
+/**
+ * 緩和版タイトルガード — 完全に無関係な本を弾くが、サブタイトル差異は許容
+ * - ISBN検索: ガード不要（ISBNは一意）
+ * - タイトル検索: このガードで「ブックページ」→「BOOK PAGE 本の年鑑」等を排除
+ */
+const normForMatch = (s: string) =>
+  s.toLowerCase()
+   .replace(/[\s\u3000・:：\-−–—「」『』()（）\[\]【】、。,./／!！?？]/g, '')
+   .replace(/[ａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)); // 全角→半角
+
+function titleLooseMatch(aiTitle: string, apiTitle: string): boolean {
+  const a = normForMatch(aiTitle);
+  const b = normForMatch(apiTitle);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // 部分一致: AIタイトルがAPIタイトルに含まれるか、その逆
+  if (a.length >= 2 && b.length >= 2 && (a.includes(b) || b.includes(a))) return true;
+  // 先頭一致: 最初の数文字が同じなら同じ本の可能性が高い
+  const minLen = Math.min(a.length, b.length);
+  const prefixLen = Math.min(minLen, 6); // 先頭6文字で判定
+  if (a.slice(0, prefixLen) === b.slice(0, prefixLen)) return true;
+  return false;
+}
+
+/** 楽天APIレスポンスから全Itemsを安全に抽出 */
+function safeExtractRakutenItems(data: unknown): RakutenItem[] {
   try {
-    if (!data || typeof data !== 'object') return null;
+    if (!data || typeof data !== 'object') return [];
     const d = data as { Items?: unknown[] };
-    if (!d.Items || !Array.isArray(d.Items) || d.Items.length === 0) return null;
-    const first = d.Items[0] as { Item?: RakutenItem } | undefined;
-    if (!first || !first.Item) return null;
-    return first.Item;
+    if (!d.Items || !Array.isArray(d.Items) || d.Items.length === 0) return [];
+    return d.Items
+      .map(w => (w as { Item?: RakutenItem })?.Item)
+      .filter((item): item is RakutenItem => !!item);
   } catch {
-    return null;
+    return [];
   }
+}
+
+/** 楽天APIレスポンスの最初のItemを安全に抽出（ISBN検索用） */
+function safeExtractFirstItem(data: unknown): RakutenItem | null {
+  const items = safeExtractRakutenItems(data);
+  return items.length > 0 ? items[0] : null;
+}
+
+/** タイトルガード付きで最適なItemを選択（タイトル検索用） */
+function findBestMatch(data: unknown, searchTitle: string): RakutenItem | null {
+  const items = safeExtractRakutenItems(data);
+  for (const item of items) {
+    if (titleLooseMatch(searchTitle, item.title || '')) return item;
+  }
+  return null; // 全Items不一致 → 別の本なので採用しない
 }
 
 /** 楽天Itemから表紙URL取得 */
@@ -138,13 +177,13 @@ async function getBookCover(title: string, author: string, isbn: string): Promis
   if (rakutenAppId && rakutenAccessKey) {
     const base = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&accessKey=${rakutenAccessKey}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
 
-    // ── Stage 1: 楽天 ISBN検索（最速・最精度） ──
+    // ── Stage 1: 楽天 ISBN検索（最速・最精度 — ISBNは一意なのでItems[0]無条件採用） ──
     if (isbn && /^\d{13}$/.test(isbn)) {
       try {
         const res = await fetch(`${base}&isbn=${isbn}`, { signal: AbortSignal.timeout(5000) });
         if (res.ok) {
           const data = await res.json();
-          const item = safeExtractRakutenItem(data);
+          const item = safeExtractFirstItem(data);
           if (item && getRakutenCover(item)) {
             console.log(`[V] ✅ Rakuten ISBN: "${title}" → "${item.title}"`);
             return rakutenItemToResult(item);
@@ -157,13 +196,13 @@ async function getBookCover(title: string, author: string, isbn: string): Promis
       }
     }
 
-    // ── Stage 2: 楽天 title+author検索 ──
+    // ── Stage 2: 楽天 title+author検索（タイトルガード付き） ──
     try {
       const url = `${base}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
       const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         const data = await res.json();
-        const item = safeExtractRakutenItem(data);
+        const item = findBestMatch(data, title);
         if (item && getRakutenCover(item)) {
           console.log(`[V] ✅ Rakuten T+A: "${title}" → "${item.title}"`);
           return rakutenItemToResult(item);
@@ -175,13 +214,13 @@ async function getBookCover(title: string, author: string, isbn: string): Promis
       console.warn(`[V] Rakuten T+A error:`, e);
     }
 
-    // ── Stage 3: 楽天 title-only検索（著者名表記揺れ救済） ──
+    // ── Stage 3: 楽天 title-only検索（著者名表記揺れ救済、タイトルガード付き） ──
     try {
       const url = `${base}&title=${encodeURIComponent(title)}`;
       const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         const data = await res.json();
-        const item = safeExtractRakutenItem(data);
+        const item = findBestMatch(data, title);
         if (item && getRakutenCover(item)) {
           console.log(`[V] ✅ Rakuten T-only: "${title}" → "${item.title}"`);
           return rakutenItemToResult(item);
@@ -206,21 +245,24 @@ async function getBookCover(title: string, author: string, isbn: string): Promis
       const data = await res.json();
       const items = data?.items;
       if (items && items.length > 0) {
-        // Items[0]を無条件採用（楽天と同じポリシー）
-        const vi = items[0]?.volumeInfo;
-        const rawUrl = vi?.imageLinks?.thumbnail || vi?.imageLinks?.smallThumbnail;
-        if (rawUrl) {
-          const coverUrl = rawUrl.replace('http://', 'https://').replace('&edge=curl', '');
-          const gTitle = vi?.title || title;
-          const gAuthor = vi?.authors?.[0] || author;
-          console.log(`[V] ✅ GoogleBooks: "${title}" → "${gTitle}"`);
-          return {
-            coverUrl,
-            rakutenUrl: '', // Google Booksには購入リンクなし → verifyBooksSequentiallyでフォールバック
-            verifiedTitle: gTitle,
-            verifiedAuthor: gAuthor,
-            verified: true,
-          };
+        // タイトルガード付きで最適なItemを選択
+        for (const gItem of items) {
+          const vi = gItem?.volumeInfo;
+          const gTitle = vi?.title || '';
+          if (!titleLooseMatch(title, gTitle)) continue;
+          const rawUrl = vi?.imageLinks?.thumbnail || vi?.imageLinks?.smallThumbnail;
+          if (rawUrl) {
+            const coverUrl = rawUrl.replace('http://', 'https://').replace('&edge=curl', '');
+            const gAuthor = vi?.authors?.[0] || author;
+            console.log(`[V] ✅ GoogleBooks: "${title}" → "${gTitle}"`);
+            return {
+              coverUrl,
+              rakutenUrl: '',
+              verifiedTitle: gTitle,
+              verifiedAuthor: gAuthor,
+              verified: true,
+            };
+          }
         }
       }
     } else {
