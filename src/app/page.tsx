@@ -37,7 +37,7 @@ export default function Home() {
   const [currentBatch, setCurrentBatch] = useState(0); // Which batch to show
   const [maxViewedBatch, setMaxViewedBatch] = useState(0); // ユーザーが手動で到達した最大バッチ
   const [searchingMore, setSearchingMore] = useState(false); // Is phase 2/3 loading?
-  const [maxBatches] = useState(3); // Max 3 batches = 9 books
+  const [maxBatches] = useState(2); // Max 2 batches = 6 books
   const [expandedLetter, setExpandedLetter] = useState<number | null>(null);
   const [bookmarkedTitles, setBookmarkedTitles] = useState<Set<string>>(new Set());
   const [showSignupModal, setShowSignupModal] = useState(false);
@@ -521,7 +521,7 @@ export default function Home() {
               </button>
             )}
 
-            {/* End message — 3バッチ9冊に到達 */}
+            {/* End message — 2バッチ6冊に到達 */}
             {maxViewedBatch >= maxBatches - 1 && currentBatch === maxViewedBatch && (
               <div className="text-center fade-in-up">
                 <p className="text-sm leading-relaxed mb-6" style={{ color: 'var(--color-text-muted)' }}>
