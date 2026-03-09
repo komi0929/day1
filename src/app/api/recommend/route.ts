@@ -71,124 +71,171 @@ interface CoverResult {
 }
 
 // ============================================================
-// Title Matching (Levenshtein 70%+)
+// 楽天APIレスポンスからヒットを抽出するヘルパー
 // ============================================================
-const normTitle = (s: string) =>
-  s.toLowerCase().replace(/[\s\u3000・:：\-−–—「」『』()（）\[\]【】、。,./／]/g, '');
+interface RakutenItem {
+  title?: string;
+  subTitle?: string;
+  author?: string;
+  isbn?: string;
+  largeImageUrl?: string;
+  mediumImageUrl?: string;
+  affiliateUrl?: string;
+  itemUrl?: string;
+}
 
-function titleMatch(aiTitle: string, apiTitle: string): boolean {
-  const a = normTitle(aiTitle), b = normTitle(apiTitle);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  if (a.length >= 3 && b.length >= 3 && (a.includes(b) || b.includes(a))) return true;
-  const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) return false;
-  const m = a.length, n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1]
-        ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
+/** 楽天APIレスポンスの最初のItemを安全に抽出 */
+function safeExtractRakutenItem(data: unknown): RakutenItem | null {
+  try {
+    if (!data || typeof data !== 'object') return null;
+    const d = data as { Items?: unknown[] };
+    if (!d.Items || !Array.isArray(d.Items) || d.Items.length === 0) return null;
+    const first = d.Items[0] as { Item?: RakutenItem } | undefined;
+    if (!first || !first.Item) return null;
+    return first.Item;
+  } catch {
+    return null;
   }
-  return (1 - dp[m][n] / maxLen) >= 0.7;
+}
+
+/** 楽天Itemから表紙URL取得 */
+function getRakutenCover(item: RakutenItem): string {
+  return (item.largeImageUrl || item.mediumImageUrl || '')
+    .replace('?_ex=200x200', '?_ex=300x300')
+    .replace('?_ex=120x120', '?_ex=300x300')
+    .replace('?_ex=64x64', '?_ex=300x300');
+}
+
+/** 楽天ItemからCoverResultを構築 */
+function rakutenItemToResult(item: RakutenItem): CoverResult {
+  return {
+    coverUrl: getRakutenCover(item),
+    rakutenUrl: item.affiliateUrl || item.itemUrl || '',
+    verifiedTitle: item.subTitle ? `${item.title} ${item.subTitle}`.trim() : (item.title || ''),
+    verifiedAuthor: item.author || '',
+    verified: true,
+  };
 }
 
 // ============================================================
-// 表紙+実在検証: 楽天 → Google Books カスケード
+// 表紙+実在検証: 楽天（ISBN→title+author→title-only） → Google Books
 // ============================================================
 /**
- * 表紙画像 + 購入URL取得 — 2段階カスケード:
- *   Stage 1: 楽天ブックスAPI — タイトル+著者で検索
- *   Stage 2: Google Books API — 楽天で見つからない場合のフォールバック
- *   ※ 全段階でタイトル照合ガード付き
+ * 表紙画像 + 購入URL取得 — 4段階カスケード:
+ *   Stage 1: 楽天 ISBN検索（最速・最精度）
+ *   Stage 2: 楽天 title+author検索
+ *   Stage 3: 楽天 title-only検索（著者名表記揺れ救済）
+ *   Stage 4: Google Books API（楽天全滅時のフォールバック）
+ *   ※ titleMatchは廃止 — APIの検索精度を信用しItems[0]を採用
  */
-async function getBookCover(title: string, author: string): Promise<CoverResult> {
+async function getBookCover(title: string, author: string, isbn: string): Promise<CoverResult> {
   const empty: CoverResult = { coverUrl: '', rakutenUrl: '', verifiedTitle: '', verifiedAuthor: '', verified: false };
 
-  // ── Stage 1: 楽天ブックスAPI（新API仕様: openapi.rakuten.co.jp + accessKey） ──
   const rakutenAppId = process.env.RAKUTEN_APP_ID || '';
   const rakutenAccessKey = process.env.RAKUTEN_ACCESS_KEY || '';
   const rakutenAffId = process.env.RAKUTEN_AFFILIATE_ID || '';
+
   if (rakutenAppId && rakutenAccessKey) {
+    const base = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&accessKey=${rakutenAccessKey}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
+
+    // ── Stage 1: 楽天 ISBN検索（最速・最精度） ──
+    if (isbn && /^\d{13}$/.test(isbn)) {
+      try {
+        const res = await fetch(`${base}&isbn=${isbn}`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const data = await res.json();
+          const item = safeExtractRakutenItem(data);
+          if (item && getRakutenCover(item)) {
+            console.log(`[V] ✅ Rakuten ISBN: "${title}" → "${item.title}"`);
+            return rakutenItemToResult(item);
+          }
+        } else {
+          console.warn(`[V] Rakuten ISBN HTTP ${res.status}`);
+        }
+      } catch (e) {
+        console.warn(`[V] Rakuten ISBN error:`, e);
+      }
+    }
+
+    // ── Stage 2: 楽天 title+author検索 ──
     try {
-      const q = encodeURIComponent(title);
-      const a = encodeURIComponent(author);
-      const rakutenUrl = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&accessKey=${rakutenAccessKey}&title=${q}&author=${a}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
-      const res = await fetch(rakutenUrl, { signal: AbortSignal.timeout(5000) });
+      const url = `${base}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
       if (res.ok) {
         const data = await res.json();
-        const items = data?.Items;
-        if (items && items.length > 0) {
-          for (const wrapper of items) {
-            const item = wrapper?.Item;
-            if (!item) continue;
-            const apiTitle = item.title || '';
-            if (!titleMatch(title, apiTitle)) continue;
-            const coverUrl = (item.largeImageUrl || item.mediumImageUrl || '')
-              .replace('?_ex=200x200', '?_ex=300x300')
-              .replace('?_ex=120x120', '?_ex=300x300');
-            const purchaseUrl = item.affiliateUrl || item.itemUrl || '';
-            const apiAuthor = item.author || '';
-            console.log(`[Cover] ✅ Rakuten: "${title}" → "${apiTitle}"`);
-            return {
-              coverUrl: coverUrl || '',
-              rakutenUrl: purchaseUrl,
-              verifiedTitle: apiTitle,
-              verifiedAuthor: apiAuthor,
-              verified: true,
-            };
-          }
+        const item = safeExtractRakutenItem(data);
+        if (item && getRakutenCover(item)) {
+          console.log(`[V] ✅ Rakuten T+A: "${title}" → "${item.title}"`);
+          return rakutenItemToResult(item);
         }
+      } else {
+        console.warn(`[V] Rakuten T+A HTTP ${res.status}`);
       }
     } catch (e) {
-      console.warn(`[Cover] Rakuten error:`, e);
+      console.warn(`[V] Rakuten T+A error:`, e);
     }
+
+    // ── Stage 3: 楽天 title-only検索（著者名表記揺れ救済） ──
+    try {
+      const url = `${base}&title=${encodeURIComponent(title)}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const data = await res.json();
+        const item = safeExtractRakutenItem(data);
+        if (item && getRakutenCover(item)) {
+          console.log(`[V] ✅ Rakuten T-only: "${title}" → "${item.title}"`);
+          return rakutenItemToResult(item);
+        }
+      } else {
+        console.warn(`[V] Rakuten T-only HTTP ${res.status}`);
+      }
+    } catch (e) {
+      console.warn(`[V] Rakuten T-only error:`, e);
+    }
+  } else {
+    console.warn(`[V] 楽天API認証情報不足 — appId=${!!rakutenAppId}, accessKey=${!!rakutenAccessKey}`);
   }
 
-  // ── Stage 2: Google Books API ──
+  // ── Stage 4: Google Books API（楽天全滅時のフォールバック） ──
   try {
     const gbApiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
     const query = encodeURIComponent(`${title} ${author}`);
-    const gbUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,authors,imageLinks))${gbApiKey ? `&key=${gbApiKey}` : ''}`;
+    const gbUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=3&fields=items(volumeInfo(title,authors,imageLinks))${gbApiKey ? `&key=${gbApiKey}` : ''}`;
     const res = await fetch(gbUrl, { signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       const data = await res.json();
       const items = data?.items;
       if (items && items.length > 0) {
-        for (const item of items) {
-          const vi = item?.volumeInfo;
-          const apiTitle = vi?.title || '';
-          if (!titleMatch(title, apiTitle)) continue;
-          const rawUrl = vi?.imageLinks?.thumbnail || vi?.imageLinks?.smallThumbnail;
-          if (rawUrl) {
-            const coverUrl = rawUrl.replace('http://', 'https://').replace('&edge=curl', '');
-            const gAuthor = vi?.authors?.[0] || author;
-            console.log(`[Cover] ✅ GoogleBooks: "${title}" → "${apiTitle}"`);
-            return {
-              coverUrl,
-              rakutenUrl: '',
-              verifiedTitle: apiTitle,
-              verifiedAuthor: gAuthor,
-              verified: true,
-            };
-          }
+        // Items[0]を無条件採用（楽天と同じポリシー）
+        const vi = items[0]?.volumeInfo;
+        const rawUrl = vi?.imageLinks?.thumbnail || vi?.imageLinks?.smallThumbnail;
+        if (rawUrl) {
+          const coverUrl = rawUrl.replace('http://', 'https://').replace('&edge=curl', '');
+          const gTitle = vi?.title || title;
+          const gAuthor = vi?.authors?.[0] || author;
+          console.log(`[V] ✅ GoogleBooks: "${title}" → "${gTitle}"`);
+          return {
+            coverUrl,
+            rakutenUrl: '', // Google Booksには購入リンクなし → verifyBooksSequentiallyでフォールバック
+            verifiedTitle: gTitle,
+            verifiedAuthor: gAuthor,
+            verified: true,
+          };
         }
       }
+    } else {
+      console.warn(`[V] GoogleBooks HTTP ${res.status}`);
     }
   } catch (e) {
-    console.warn(`[Cover] GoogleBooks error:`, e);
+    console.warn(`[V] GoogleBooks error:`, e);
   }
 
-  console.log(`[Cover] ❌ "${title}" — not found`);
+  console.log(`[V] ❌ "${title}" — 全4ステージ不一致`);
   return empty;
 }
 
 // ============================================================
-// 逐次検証 + 早期リターン（1冊ずつ検証、needed冊で即終了）
+// 逐次検証 + 早期リターン
 // ============================================================
 async function verifyBooksSequentially(
   candidates: BookFromAI[],
@@ -202,9 +249,8 @@ async function verifyBooksSequentially(
     lastCheckedIdx = i;
 
     const book = candidates[i];
-    const coverResult = await getBookCover(book.title, book.author);
+    const coverResult = await getBookCover(book.title, book.author, book.isbn || '');
 
-    // 表紙画像がある場合のみ採用（実在確認）
     if (!coverResult.verified || !coverResult.coverUrl) continue;
 
     const finalTitle = coverResult.verifiedTitle || book.title;
@@ -218,7 +264,7 @@ async function verifyBooksSequentially(
       amazonUrl: generateAmazonUrl(finalTitle, finalAuthor),
       rakutenUrl: coverResult.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
     });
-    console.log(`[V] ${verified.length}/${needed} done`);
+    console.log(`[V] ${verified.length}/${needed} done: "${finalTitle}"`);
   }
 
   return { verified, remaining: candidates.slice(lastCheckedIdx + 1) };
@@ -370,14 +416,14 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
       console.log(`[R] Mode B: AI → ${candidates.length} candidates`);
     }
 
-    // 逐次検証（楽天 → Google Books カスケード）
+    // 逐次検証（楽天 ISBN→T+A→T-only → Google Books カスケード）
     const { verified, remaining } = await verifyBooksSequentially(candidates, BOOK_COUNT);
     console.log(`[R] ${verified.length}/${BOOK_COUNT} verified | ${remaining.length} pending`);
 
     if (verified.length === 0) {
       return NextResponse.json(
         { error: 'RECOMMEND_FAILED', message: 'ごめんなさい、条件に合う本が見つかりませんでした。もう一度お試しください。' },
-        { status: 500 }
+        { status: 422 }
       );
     }
 
