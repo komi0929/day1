@@ -108,13 +108,14 @@ async function verifyAndEnrich(
   // ── 安全装置: 関数全体をtry-catchで囲み、いかなる例外でもサーバーを落とさない ──
   try {
     const appId = process.env.RAKUTEN_APP_ID || '';
+    const accessKey = process.env.RAKUTEN_ACCESS_KEY || '';
     const affId = process.env.RAKUTEN_AFFILIATE_ID || '';
-    if (!appId) {
-      console.warn('[V] RAKUTEN_APP_ID未設定 — スキップ');
+    if (!appId || !accessKey) {
+      console.warn(`[V] 楽天API認証情報不足 — appId=${!!appId}, accessKey=${!!accessKey}`);
       return empty;
     }
 
-    const base = `https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${appId}&hits=5&format=json${affId ? `&affiliateId=${affId}` : ''}`;
+    const base = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${appId}&accessKey=${accessKey}&hits=5&format=json${affId ? `&affiliateId=${affId}` : ''}`;
 
     // ── フェーズ1: ISBN検索（最速・最精度） ──
     if (aiIsbn && /^\d{13}$/.test(aiIsbn)) {
