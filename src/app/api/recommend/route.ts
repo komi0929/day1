@@ -151,8 +151,9 @@ async function getBookCover(title: string, author: string): Promise<CoverResult>
 
   // ── Stage 2: Google Books API ──
   try {
+    const gbApiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
     const query = encodeURIComponent(`${title} ${author}`);
-    const gbUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,authors,imageLinks))`;
+    const gbUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,authors,imageLinks))${gbApiKey ? `&key=${gbApiKey}` : ''}`;
     const res = await fetch(gbUrl, { signal: AbortSignal.timeout(3000) });
     if (res.ok) {
       const data = await res.json();
