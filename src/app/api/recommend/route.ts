@@ -3,6 +3,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createAuthClient } from '@/lib/supabase';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
+export const maxDuration = 60;
+
 const BOOK_COUNT = 3;
 const AI_REQUEST_COUNT = 12;
 
