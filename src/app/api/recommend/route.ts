@@ -124,11 +124,7 @@ function safeExtractRakutenItems(data: unknown): RakutenItem[] {
   }
 }
 
-/** 楽天APIレスポンスの最初のItemを安全に抽出（ISBN検索用） */
-function safeExtractFirstItem(data: unknown): RakutenItem | null {
-  const items = safeExtractRakutenItems(data);
-  return items.length > 0 ? items[0] : null;
-}
+
 
 /** タイトルガード付きで最適なItemを選択（タイトル検索用） */
 function findBestMatch(data: unknown, searchTitle: string): RakutenItem | null {
@@ -159,93 +155,16 @@ function rakutenItemToResult(item: RakutenItem): CoverResult {
 }
 
 // ============================================================
-// ISBN-First アーキテクチャ
-// Google BooksでISBN確定 → 楽天にピンポイント検索
+// 楽天タイトル+著者検索（ワンステップ）
+// - AIのISBNは一切使わない（ハルシネーションの元凶）
+// - Google Booksも使わない（不安定、429、キー問題）
+// - 楽天タイトル+著者検索 + titleLooseMatchで確実にガード
+// - 1冊あたりAPI 1回 = 最速
 // ============================================================
-
-/** Google BooksからISBN-13を取得 */
-async function resolveIsbnViaGoogleBooks(title: string, author: string): Promise<string | null> {
-  const query = encodeURIComponent(`${title} ${author}`);
-  const baseUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,authors,industryIdentifiers))`;
-  const gbApiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
-  console.log(`[ISBN] GB key prefix: ${gbApiKey.slice(0, 8)}... (len=${gbApiKey.length})`);
-
-  // APIキー付きで試行、失敗したらキーなしでリトライ
-  const urls = gbApiKey
-    ? [`${baseUrl}&key=${gbApiKey}`, baseUrl]
-    : [baseUrl];
-
-  for (const gbUrl of urls) {
-    try {
-      const res = await fetch(gbUrl, { signal: AbortSignal.timeout(4000) });
-      if (!res.ok) {
-        console.warn(`[ISBN] GoogleBooks HTTP ${res.status}`);
-        continue;
-      }
-      const data = await res.json();
-      const items = data?.items;
-      if (!items || items.length === 0) continue;
-
-      for (const gItem of items) {
-        const vi = gItem?.volumeInfo;
-        const gTitle = vi?.title || '';
-        if (!titleLooseMatch(title, gTitle)) continue;
-
-        const identifiers = vi?.industryIdentifiers;
-        if (!identifiers || !Array.isArray(identifiers)) continue;
-
-        const isbn13 = identifiers.find((id: { type: string; identifier: string }) => id.type === 'ISBN_13');
-        if (isbn13?.identifier && /^\d{13}$/.test(isbn13.identifier)) {
-          console.log(`[ISBN] ✅ GoogleBooks: "${title}" → ISBN ${isbn13.identifier}`);
-          return isbn13.identifier;
-        }
-      }
-    } catch (e) {
-      console.warn(`[ISBN] GoogleBooks error:`, e);
-    }
-  }
-  console.log(`[ISBN] GoogleBooksにISBN-13なし: "${title}"`);
-  return null;
-}
-
-/** 楽天APIでISBN検索 → 表紙+購入リンク取得 */
 const RAKUTEN_ORIGIN = 'https://compass.hitokoto.tech';
 const rakutenHeaders = { 'Origin': RAKUTEN_ORIGIN };
 
-async function searchRakutenByIsbn(isbn: string, base: string, expectedTitle: string): Promise<CoverResult | null> {
-  try {
-    const res = await fetch(`${base}&isbn=${isbn}`, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
-    if (!res.ok) {
-      console.warn(`[V] Rakuten ISBN HTTP ${res.status}`);
-      return null;
-    }
-    const data = await res.json();
-    const item = safeExtractFirstItem(data);
-    if (item && getRakutenCover(item)) {
-      // タイトル照合: ISBNが間違っている場合に別の本を返すのを防ぐ
-      if (!titleLooseMatch(expectedTitle, item.title || '')) {
-        console.warn(`[V] ISBN hit but title mismatch: expected "${expectedTitle}" got "${item.title}"`);
-        return null;
-      }
-      return rakutenItemToResult(item);
-    }
-    return null;
-  } catch (e) {
-    console.warn(`[V] Rakuten ISBN error:`, e);
-    return null;
-  }
-}
-
-/**
- * ISBN-Firstフロー:
- *   Step 1: AIのISBNで楽天検索（AIが正確なISBNを出せた場合、最速）
- *   Step 2: Google BooksでISBN-13を特定 → そのISBNで楽天検索
- *   Step 3: 最終フォールバック — 楽天タイトル検索（タイトルガード付き）
- *
- * ポリシー: ISBNさえ確定すれば楽天検索は100%正確。
- *           タイトル検索は最終手段としてのみ使用。
- */
-async function getBookCover(title: string, author: string, isbn: string): Promise<CoverResult> {
+async function getBookCover(title: string, author: string): Promise<CoverResult> {
   const empty: CoverResult = { coverUrl: '', rakutenUrl: '', verifiedTitle: '', verifiedAuthor: '', verified: false };
 
   const rakutenAppId = process.env.RAKUTEN_APP_ID || '';
@@ -259,43 +178,25 @@ async function getBookCover(title: string, author: string, isbn: string): Promis
 
   const base = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&accessKey=${rakutenAccessKey}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
 
-  // ── Step 1: AIのISBNで楽天検索（最速ルート） ──
-  if (isbn && /^\d{13}$/.test(isbn)) {
-    const result = await searchRakutenByIsbn(isbn, base, title);
-    if (result) {
-      console.log(`[V] ✅ Step1 AI-ISBN: "${title}"`);
-      return result;
-    }
-  }
-
-  // ── Step 2: Google BooksでISBN確定 → 楽天ISBN検索 ──
-  const resolvedIsbn = await resolveIsbnViaGoogleBooks(title, author);
-  if (resolvedIsbn) {
-    const result = await searchRakutenByIsbn(resolvedIsbn, base, title);
-    if (result) {
-      console.log(`[V] ✅ Step2 GB-ISBN→楽天: "${title}"`);
-      return result;
-    }
-  }
-
-  // ── Step 3: 最終フォールバック — 楽天タイトル検索（タイトルガード付き） ──
   try {
     const url = `${base}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
-    if (res.ok) {
-      const data = await res.json();
-      const item = findBestMatch(data, title);
-      if (item && getRakutenCover(item)) {
-        console.log(`[V] ✅ Step3 楽天T+A: "${title}" → "${item.title}"`);
-        return rakutenItemToResult(item);
-      }
+    if (!res.ok) {
+      console.warn(`[V] Rakuten HTTP ${res.status}: "${title}"`);
+      return empty;
     }
+    const data = await res.json();
+    const item = findBestMatch(data, title);
+    if (item && getRakutenCover(item)) {
+      console.log(`[V] ✅ "${title}" → "${item.title}"`);
+      return rakutenItemToResult(item);
+    }
+    console.log(`[V] ❌ "${title}" — 楽天に一致なし`);
+    return empty;
   } catch (e) {
-    console.warn(`[V] Step3 error:`, e);
+    console.warn(`[V] 楽天エラー: "${title}"`, e);
+    return empty;
   }
-
-  console.log(`[V] ❌ "${title}" — 全Step不一致`);
-  return empty;
 }
 
 // ============================================================
@@ -313,7 +214,7 @@ async function verifyBooksSequentially(
     lastCheckedIdx = i;
 
     const book = candidates[i];
-    const coverResult = await getBookCover(book.title, book.author, book.isbn || '');
+    const coverResult = await getBookCover(book.title, book.author);
 
     if (!coverResult.verified || !coverResult.coverUrl) continue;
 

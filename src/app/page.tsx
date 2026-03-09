@@ -289,8 +289,13 @@ export default function Home() {
 
   useEffect(() => {
     if (phase === 'waiting' && fragments.length === 0 && noteBody) {
-      const sentences = noteBody.split(/[。！？\n]/).map(s => s.trim()).filter(s => s.length >= 15 && s.length <= 80);
-      const shuffled = sentences.sort(() => Math.random() - 0.5).slice(0, 6);
+      const sentences = noteBody.split(/[。！？\n]/).map(s => {
+        let t = s.trim().replace(/^[\s　]+|[\s　]+$/g, '');
+        t = t.replace(/^[「『]+/, '').replace(/[」』]+$/, '').trim();
+        return t;
+      }).filter(s => s.length >= 10 && s.length <= 120);
+      const unique = [...new Set(sentences)];
+      const shuffled = unique.sort(() => Math.random() - 0.5).slice(0, 12);
       if (shuffled.length > 0) setFragments(shuffled);
     }
   }, [phase, noteBody, fragments.length]);
@@ -846,7 +851,11 @@ function WaitingScreen({ fragments, currentFragment, fragmentVisible }: {
         <div className="fragment-container">
           {fragments.length > 0 && (
             <p className={`fragment-text ${fragmentVisible ? 'fragment-visible' : 'fragment-hidden'}`}>
-              「{fragments[currentFragment]}」
+              {(() => {
+                const f = fragments[currentFragment] || '';
+                const hasQuote = (f.startsWith('「') || f.startsWith('『'));
+                return hasQuote ? f : `「${f}」`;
+              })()}
             </p>
           )}
         </div>
