@@ -166,6 +166,7 @@ async function resolveIsbnViaGoogleBooks(title: string, author: string): Promise
   const query = encodeURIComponent(`${title} ${author}`);
   const baseUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,authors,industryIdentifiers))`;
   const gbApiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
+  console.log(`[ISBN] GB key prefix: ${gbApiKey.slice(0, 8)}... (len=${gbApiKey.length})`);
 
   // APIキー付きで試行、失敗したらキーなしでリトライ
   const urls = gbApiKey
