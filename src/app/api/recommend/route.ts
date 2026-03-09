@@ -163,41 +163,46 @@ function rakutenItemToResult(item: RakutenItem): CoverResult {
 
 /** Google BooksからISBN-13を取得 */
 async function resolveIsbnViaGoogleBooks(title: string, author: string): Promise<string | null> {
-  try {
-    const gbApiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
-    const query = encodeURIComponent(`${title} ${author}`);
-    const gbUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,authors,industryIdentifiers,imageLinks))${gbApiKey ? `&key=${gbApiKey}` : ''}`;
-    const res = await fetch(gbUrl, { signal: AbortSignal.timeout(4000) });
-    if (!res.ok) {
-      console.warn(`[ISBN] GoogleBooks HTTP ${res.status}`);
-      return null;
-    }
-    const data = await res.json();
-    const items = data?.items;
-    if (!items || items.length === 0) return null;
+  const query = encodeURIComponent(`${title} ${author}`);
+  const baseUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&langRestrict=ja&maxResults=5&fields=items(volumeInfo(title,authors,industryIdentifiers))`;
+  const gbApiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
 
-    // タイトルが一致するアイテムからISBN-13を探す
-    for (const gItem of items) {
-      const vi = gItem?.volumeInfo;
-      const gTitle = vi?.title || '';
-      if (!titleLooseMatch(title, gTitle)) continue;
+  // APIキー付きで試行、失敗したらキーなしでリトライ
+  const urls = gbApiKey
+    ? [`${baseUrl}&key=${gbApiKey}`, baseUrl]
+    : [baseUrl];
 
-      const identifiers = vi?.industryIdentifiers;
-      if (!identifiers || !Array.isArray(identifiers)) continue;
-
-      // ISBN-13を優先
-      const isbn13 = identifiers.find((id: { type: string; identifier: string }) => id.type === 'ISBN_13');
-      if (isbn13?.identifier && /^\d{13}$/.test(isbn13.identifier)) {
-        console.log(`[ISBN] ✅ GoogleBooks: "${title}" → ISBN ${isbn13.identifier}`);
-        return isbn13.identifier;
+  for (const gbUrl of urls) {
+    try {
+      const res = await fetch(gbUrl, { signal: AbortSignal.timeout(4000) });
+      if (!res.ok) {
+        console.warn(`[ISBN] GoogleBooks HTTP ${res.status}`);
+        continue;
       }
+      const data = await res.json();
+      const items = data?.items;
+      if (!items || items.length === 0) continue;
+
+      for (const gItem of items) {
+        const vi = gItem?.volumeInfo;
+        const gTitle = vi?.title || '';
+        if (!titleLooseMatch(title, gTitle)) continue;
+
+        const identifiers = vi?.industryIdentifiers;
+        if (!identifiers || !Array.isArray(identifiers)) continue;
+
+        const isbn13 = identifiers.find((id: { type: string; identifier: string }) => id.type === 'ISBN_13');
+        if (isbn13?.identifier && /^\d{13}$/.test(isbn13.identifier)) {
+          console.log(`[ISBN] ✅ GoogleBooks: "${title}" → ISBN ${isbn13.identifier}`);
+          return isbn13.identifier;
+        }
+      }
+    } catch (e) {
+      console.warn(`[ISBN] GoogleBooks error:`, e);
     }
-    console.log(`[ISBN] GoogleBooksにISBN-13なし: "${title}"`);
-    return null;
-  } catch (e) {
-    console.warn(`[ISBN] GoogleBooks error:`, e);
-    return null;
   }
+  console.log(`[ISBN] GoogleBooksにISBN-13なし: "${title}"`);
+  return null;
 }
 
 /** 楽天APIでISBN検索 → 表紙+購入リンク取得 */
