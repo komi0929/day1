@@ -37,6 +37,7 @@ export default function Home() {
   const [currentBatch, setCurrentBatch] = useState(0); // Which batch to show
   const [maxViewedBatch, setMaxViewedBatch] = useState(0); // ユーザーが手動で到達した最大バッチ
   const [searchingMore, setSearchingMore] = useState(false); // Is phase 2/3 loading?
+  const [batchLoadFailed, setBatchLoadFailed] = useState(false); // 429等でバッチ取得失敗→リトライ停止
   const [maxBatches] = useState(2); // Max 2 batches = 6 books
   const [expandedLetter, setExpandedLetter] = useState<number | null>(null);
   const [bookmarkedTitles, setBookmarkedTitles] = useState<Set<string>>(new Set());
@@ -143,6 +144,7 @@ export default function Home() {
     setError(null);
     noteDataRef.current = { body, title };
     pendingCandidatesRef.current = [];
+    setBatchLoadFailed(false);
     setBookBatches([]);
     setCurrentBatch(0);
     setMaxViewedBatch(0);
@@ -195,6 +197,7 @@ export default function Home() {
       const thumbnailHits = result.books.filter((b: BookResult) => b.thumbnail).length;
       track('recommend_complete', { phase: bookBatches.length + 1, bookCount: result.books.length, durationMs: timer(), thumbnailHits });
       pendingCandidatesRef.current = result.pendingCandidates || [];
+      setBatchLoadFailed(false);
       setBookBatches(prev => {
         const newBatches = [...prev, result.books];
         if (!isBackgroundPreload) {
@@ -205,6 +208,8 @@ export default function Home() {
         }
         return newBatches;
       });
+    } else {
+      setBatchLoadFailed(true);
     }
     setSearchingMore(false);
   }, [searchingMore, bookBatches, maxBatches, fetchBooks]);
@@ -242,10 +247,10 @@ export default function Home() {
 
   /* ─── Background Pre-fetch: 全バッチを連続で自動ロード ─── */
   useEffect(() => {
-    if (phase === 'results' && bookBatches.length < maxBatches && !searchingMore) {
+    if (phase === 'results' && bookBatches.length < maxBatches && !searchingMore && !batchLoadFailed) {
       loadNextBatch(true);
     }
-  }, [phase, bookBatches.length, searchingMore, loadNextBatch, maxBatches]);
+  }, [phase, bookBatches.length, searchingMore, batchLoadFailed, loadNextBatch, maxBatches]);
 
   /* ─── Bookmark handler ─── */
   const handleBookmark = useCallback(async (book: BookResult) => {
