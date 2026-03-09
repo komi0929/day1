@@ -207,9 +207,12 @@ async function resolveIsbnViaGoogleBooks(title: string, author: string): Promise
 }
 
 /** 楽天APIでISBN検索 → 表紙+購入リンク取得 */
+const RAKUTEN_ORIGIN = 'https://compass.hitokoto.tech';
+const rakutenHeaders = { 'Origin': RAKUTEN_ORIGIN };
+
 async function searchRakutenByIsbn(isbn: string, base: string): Promise<CoverResult | null> {
   try {
-    const res = await fetch(`${base}&isbn=${isbn}`, { signal: AbortSignal.timeout(5000) });
+    const res = await fetch(`${base}&isbn=${isbn}`, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
     if (!res.ok) {
       console.warn(`[V] Rakuten ISBN HTTP ${res.status}`);
       return null;
@@ -271,7 +274,7 @@ async function getBookCover(title: string, author: string, isbn: string): Promis
   // ── Step 3: 最終フォールバック — 楽天タイトル検索（タイトルガード付き） ──
   try {
     const url = `${base}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
     if (res.ok) {
       const data = await res.json();
       const item = findBestMatch(data, title);
