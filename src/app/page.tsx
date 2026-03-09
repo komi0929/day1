@@ -74,6 +74,9 @@ export default function Home() {
         headers,
         body: JSON.stringify({ body, title, excludeTitles, includeFragments, pendingCandidates }),
       });
+      if (res.status === 429) {
+        throw new Error('少しお時間をおいてから（1分ほど）、もう一度お試しください。');
+      }
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.message || 'エラーが発生しました');

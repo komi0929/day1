@@ -212,7 +212,7 @@ async function resolveIsbnViaGoogleBooks(title: string, author: string): Promise
 const RAKUTEN_ORIGIN = 'https://compass.hitokoto.tech';
 const rakutenHeaders = { 'Origin': RAKUTEN_ORIGIN };
 
-async function searchRakutenByIsbn(isbn: string, base: string): Promise<CoverResult | null> {
+async function searchRakutenByIsbn(isbn: string, base: string, expectedTitle: string): Promise<CoverResult | null> {
   try {
     const res = await fetch(`${base}&isbn=${isbn}`, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
     if (!res.ok) {
@@ -222,6 +222,11 @@ async function searchRakutenByIsbn(isbn: string, base: string): Promise<CoverRes
     const data = await res.json();
     const item = safeExtractFirstItem(data);
     if (item && getRakutenCover(item)) {
+      // タイトル照合: ISBNが間違っている場合に別の本を返すのを防ぐ
+      if (!titleLooseMatch(expectedTitle, item.title || '')) {
+        console.warn(`[V] ISBN hit but title mismatch: expected "${expectedTitle}" got "${item.title}"`);
+        return null;
+      }
       return rakutenItemToResult(item);
     }
     return null;
@@ -256,7 +261,7 @@ async function getBookCover(title: string, author: string, isbn: string): Promis
 
   // ── Step 1: AIのISBNで楽天検索（最速ルート） ──
   if (isbn && /^\d{13}$/.test(isbn)) {
-    const result = await searchRakutenByIsbn(isbn, base);
+    const result = await searchRakutenByIsbn(isbn, base, title);
     if (result) {
       console.log(`[V] ✅ Step1 AI-ISBN: "${title}"`);
       return result;
@@ -266,7 +271,7 @@ async function getBookCover(title: string, author: string, isbn: string): Promis
   // ── Step 2: Google BooksでISBN確定 → 楽天ISBN検索 ──
   const resolvedIsbn = await resolveIsbnViaGoogleBooks(title, author);
   if (resolvedIsbn) {
-    const result = await searchRakutenByIsbn(resolvedIsbn, base);
+    const result = await searchRakutenByIsbn(resolvedIsbn, base, title);
     if (result) {
       console.log(`[V] ✅ Step2 GB-ISBN→楽天: "${title}"`);
       return result;
