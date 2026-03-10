@@ -862,14 +862,7 @@ function WaitingScreen({ fragments, currentFragment, fragmentVisible }: {
         <div className="fragment-container">
           {fragments.length > 0 && (
             <p className={`fragment-text ${fragmentVisible ? 'fragment-visible' : 'fragment-hidden'}`}>
-              {(() => {
-                let f = (fragments[currentFragment] || '').trim();
-                // 全角スペースを半角に正規化
-                f = f.replace(/\u3000/g, ' ').trim();
-                // 先頭末尾の括弧・引用符を除去（二重括弧防止）
-                f = f.replace(/^[「『"'"]+/, '').replace(/[」』"'"]+$/, '').trim();
-                return f ? `「${f}」` : '';
-              })()}
+              {(fragments[currentFragment] || '').trim().replace(/\u3000/g, ' ').trim()}
             </p>
           )}
         </div>
