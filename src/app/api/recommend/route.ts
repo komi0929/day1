@@ -56,6 +56,7 @@ interface BookFromAI {
 }
 
 interface BookResult extends BookFromAI {
+  isbn: string;
   thumbnail: string;
   amazonUrl: string;
   rakutenUrl: string;
@@ -66,6 +67,7 @@ interface CoverResult {
   rakutenUrl: string;
   verifiedTitle: string;
   verifiedAuthor: string;
+  verifiedIsbn: string;
   verified: boolean;
 }
 
@@ -147,6 +149,7 @@ function rakutenItemToResult(item: RakutenItem): CoverResult {
     rakutenUrl: item.affiliateUrl || item.itemUrl || '',
     verifiedTitle: item.subTitle ? `${item.title} ${item.subTitle}`.trim() : (item.title || ''),
     verifiedAuthor: item.author || '',
+    verifiedIsbn: item.isbn || '',
     verified: true,
   };
 }
@@ -162,7 +165,7 @@ const RAKUTEN_ORIGIN = 'https://compass.hitokoto.tech';
 const rakutenHeaders = { 'Origin': RAKUTEN_ORIGIN };
 
 async function getBookCover(title: string, author: string): Promise<CoverResult> {
-  const empty: CoverResult = { coverUrl: '', rakutenUrl: '', verifiedTitle: '', verifiedAuthor: '', verified: false };
+  const empty: CoverResult = { coverUrl: '', rakutenUrl: '', verifiedTitle: '', verifiedAuthor: '', verifiedIsbn: '', verified: false };
 
   const rakutenAppId = process.env.RAKUTEN_APP_ID || '';
   const rakutenAccessKey = process.env.RAKUTEN_ACCESS_KEY || '';
@@ -233,12 +236,14 @@ async function verifyBooksSequentially(
     const finalTitle = coverResult.verifiedTitle || book.title;
     const finalAuthor = coverResult.verifiedAuthor || book.author;
 
+    const isbn = coverResult.verifiedIsbn;
     verified.push({
       ...book,
+      isbn,
       title: finalTitle,
       author: finalAuthor,
       thumbnail: coverResult.coverUrl,
-      amazonUrl: generateAmazonUrl(finalTitle, finalAuthor),
+      amazonUrl: isbn ? generateAmazonIsbnUrl(isbn) : generateAmazonUrl(finalTitle, finalAuthor),
       rakutenUrl: coverResult.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
     });
     console.log(`[V] ${verified.length}/${needed} done: "${finalTitle}"`);
@@ -416,6 +421,11 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
       { status: 500 }
     );
   }
+}
+
+function generateAmazonIsbnUrl(isbn: string): string {
+  const tag = process.env.AMAZON_ASSOCIATE_TAG || 'compass08d-22';
+  return `https://www.amazon.co.jp/dp/${isbn}?tag=${tag}`;
 }
 
 function generateAmazonUrl(title: string, author: string): string {
