@@ -6,7 +6,7 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit';
 export const maxDuration = 60;
 
 const BOOK_COUNT = 3;
-const AI_REQUEST_COUNT = 10;
+const AI_REQUEST_COUNT = 12;
 
 function buildSystemPrompt() {
   return `あなたは、ユーザーの言葉を深く愛するプロの編集者です。
@@ -175,25 +175,40 @@ async function getBookCover(title: string, author: string): Promise<CoverResult>
 
   const base = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&accessKey=${rakutenAccessKey}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
 
+  // Step 1: タイトル+著者で検索（精度高い）
   try {
     const url = `${base}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
-    if (!res.ok) {
-      console.warn(`[V] Rakuten HTTP ${res.status}: "${title}"`);
-      return empty;
+    if (res.ok) {
+      const data = await res.json();
+      const item = findBestMatch(data, title);
+      if (item && getRakutenCover(item)) {
+        console.log(`[V] ✅ T+A "${title}" → "${item.title}"`);
+        return rakutenItemToResult(item);
+      }
     }
-    const data = await res.json();
-    const item = findBestMatch(data, title);
-    if (item && getRakutenCover(item)) {
-      console.log(`[V] ✅ "${title}" → "${item.title}"`);
-      return rakutenItemToResult(item);
-    }
-    console.log(`[V] ❌ "${title}" — 楽天に一致なし`);
-    return empty;
   } catch (e) {
-    console.warn(`[V] 楽天エラー: "${title}"`, e);
-    return empty;
+    console.warn(`[V] 楽天T+Aエラー: "${title}"`, e);
   }
+
+  // Step 2: タイトルのみで検索（著者名の表記揺れ対策）
+  try {
+    const url = `${base}&title=${encodeURIComponent(title)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
+    if (res.ok) {
+      const data = await res.json();
+      const item = findBestMatch(data, title);
+      if (item && getRakutenCover(item)) {
+        console.log(`[V] ✅ T-only "${title}" → "${item.title}"`);
+        return rakutenItemToResult(item);
+      }
+    }
+  } catch (e) {
+    console.warn(`[V] 楽天T-onlyエラー: "${title}"`, e);
+  }
+
+  console.log(`[V] ❌ "${title}" — 楽天に一致なし（T+A, T-only両方失敗）`);
+  return empty;
 }
 
 // ============================================================

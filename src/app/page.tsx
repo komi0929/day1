@@ -516,10 +516,11 @@ export default function Home() {
               </div>
             )}
 
-            {/* 「他の本を探す」ボタン — 常に静的テキスト表示、クリック時に結果判定 */}
+            {/* 「他の本を探す」ボタン */}
             {currentBatch === maxViewedBatch && maxViewedBatch < maxBatches - 1 && (
               <button
                 id="load-more-button"
+                disabled={searchingMore}
                 onClick={() => {
                   const nextIdx = maxViewedBatch + 1;
                   if (bookBatches.length > nextIdx) {
@@ -530,13 +531,16 @@ export default function Home() {
                     setExpandedLetter(null);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   } else {
-                    // まだ未取得 → foreground検索開始（ローディング画面遷移）
+                    // まだ未取得 → foreground検索開始
                     loadNextBatch(false);
                   }
                 }}
                 className="btn-ghost w-full"
+                style={{ opacity: searchingMore ? 0.6 : 1 }}
               >
-                {`他の本を探す（${(maxViewedBatch + 1) * 3 + 1}冊目〜） →`}
+                {searchingMore
+                  ? <span className="analyzing-pulse">他の本を探しています…</span>
+                  : `他の本を探す（${(maxViewedBatch + 1) * 3 + 1}冊目〜） →`}
               </button>
             )}
 
