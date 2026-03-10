@@ -155,14 +155,34 @@ function rakutenItemToResult(item: RakutenItem): CoverResult {
 }
 
 // ============================================================
-// 楽天タイトル+著者検索（ワンステップ）
-// - AIのISBNは一切使わない（ハルシネーションの元凶）
-// - Google Booksも使わない（不安定、429、キー問題）
-// - 楽天タイトル+著者検索 + titleLooseMatchで確実にガード
-// - 1冊あたりAPI 1回 = 最速
+// 楽天 3段階検索 — ヒット率最大化
+// Step 1: title+author（高精度）
+// Step 2: title-only（著者名表記揺れ対策）
+// Step 3: keyword検索（タイトル表記揺れ・サブタイトル差異対策）
 // ============================================================
 const RAKUTEN_ORIGIN = 'https://compass.hitokoto.tech';
 const rakutenHeaders = { 'Origin': RAKUTEN_ORIGIN };
+
+/** 楽天APIに1回リクエストしてtitleLooseMatchガード付きでItemを返す */
+async function rakutenSearch(
+  base: string, params: string, title: string, label: string,
+): Promise<CoverResult | null> {
+  try {
+    const res = await fetch(`${base}${params}`, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const items = safeExtractRakutenItems(data);
+    for (const item of items) {
+      if (getRakutenCover(item) && titleLooseMatch(title, item.title || '')) {
+        console.log(`[V] \u2705 ${label} "${title}" \u2192 "${item.title}"`);
+        return rakutenItemToResult(item);
+      }
+    }
+  } catch (e) {
+    console.warn(`[V] ${label}\u30a8\u30e9\u30fc: "${title}"`, e);
+  }
+  return null;
+}
 
 async function getBookCover(title: string, author: string): Promise<CoverResult> {
   const empty: CoverResult = { coverUrl: '', rakutenUrl: '', verifiedTitle: '', verifiedAuthor: '', verifiedIsbn: '', verified: false };
@@ -172,57 +192,42 @@ async function getBookCover(title: string, author: string): Promise<CoverResult>
   const rakutenAffId = process.env.RAKUTEN_AFFILIATE_ID || '';
 
   if (!rakutenAppId || !rakutenAccessKey) {
-    console.warn(`[V] 楽天API認証情報不足`);
+    console.warn(`[V] \u697d\u5929API\u8a8d\u8a3c\u60c5\u5831\u4e0d\u8db3`);
     return empty;
   }
 
-  const base = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&accessKey=${rakutenAccessKey}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
+  const base = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&accessKey=${rakutenAccessKey}&hits=10&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
 
-  // Step 1: タイトル+著者で検索（精度高い）
-  try {
-    const url = `${base}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
-    if (res.ok) {
-      const data = await res.json();
-      const item = findBestMatch(data, title);
-      if (item && getRakutenCover(item)) {
-        console.log(`[V] ✅ T+A "${title}" → "${item.title}"`);
-        return rakutenItemToResult(item);
-      }
-    }
-  } catch (e) {
-    console.warn(`[V] 楽天T+Aエラー: "${title}"`, e);
-  }
+  // Step 1: \u30bf\u30a4\u30c8\u30eb+\u8457\u8005\uff08\u9ad8\u7cbe\u5ea6\uff09
+  const s1 = await rakutenSearch(base, `&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`, title, 'T+A');
+  if (s1) return s1;
 
-  // Step 2: タイトルのみで検索（著者名の表記揺れ対策）
-  try {
-    const url = `${base}&title=${encodeURIComponent(title)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
-    if (res.ok) {
-      const data = await res.json();
-      const item = findBestMatch(data, title);
-      if (item && getRakutenCover(item)) {
-        console.log(`[V] ✅ T-only "${title}" → "${item.title}"`);
-        return rakutenItemToResult(item);
-      }
-    }
-  } catch (e) {
-    console.warn(`[V] 楽天T-onlyエラー: "${title}"`, e);
-  }
+  // Step 2: \u30bf\u30a4\u30c8\u30eb\u306e\u307f\uff08\u8457\u8005\u540d\u8868\u8a18\u63fa\u308c\u5bfe\u7b56\uff09
+  const s2 = await rakutenSearch(base, `&title=${encodeURIComponent(title)}`, title, 'T-only');
+  if (s2) return s2;
 
-  console.log(`[V] ❌ "${title}" — 楽天に一致なし（T+A, T-only両方失敗）`);
+  // Step 3: keyword\u691c\u7d22\uff08\u30bf\u30a4\u30c8\u30eb\u306e\u8868\u8a18\u63fa\u308c\u30fb\u30b5\u30d6\u30bf\u30a4\u30c8\u30eb\u5dee\u7570\u5bfe\u7b56\uff09
+  const mainTitle = title
+    .replace(/[\s\u3000]+/g, ' ')
+    .replace(/[\uff08(].+[)\uff09]/g, '')
+    .replace(/[-\u2212\u2013\u2014:\uff1a].+$/, '')
+    .trim();
+  const keyword = `${mainTitle} ${author}`.trim();
+  const s3 = await rakutenSearch(base, `&keyword=${encodeURIComponent(keyword)}`, title, 'KW');
+  if (s3) return s3;
+
+  console.log(`[V] \u274c "${title}" \u2014 3\u6bb5\u968e\u3059\u3079\u3066\u5931\u6557`);
   return empty;
 }
 
 // ============================================================
-// 逐次検証 + 早期リターン
+// 逐次検証 + 早期リターン（表紙は必須 — 恒久ルール）
 // ============================================================
 async function verifyBooksSequentially(
   candidates: BookFromAI[],
   needed: number
 ): Promise<{ verified: BookResult[]; remaining: BookFromAI[] }> {
   const verified: BookResult[] = [];
-  const unverified: BookResult[] = [];
   let lastCheckedIdx = -1;
 
   for (let i = 0; i < candidates.length; i++) {
@@ -232,38 +237,22 @@ async function verifyBooksSequentially(
     const book = candidates[i];
     const coverResult = await getBookCover(book.title, book.author);
 
-    if (coverResult.verified && coverResult.coverUrl) {
-      // 楽天で検証済み — 表紙・ISBN・正確なタイトル付き
-      const finalTitle = coverResult.verifiedTitle || book.title;
-      const finalAuthor = coverResult.verifiedAuthor || book.author;
-      const isbn = coverResult.verifiedIsbn;
-      verified.push({
-        ...book,
-        isbn,
-        title: finalTitle,
-        author: finalAuthor,
-        thumbnail: coverResult.coverUrl,
-        amazonUrl: isbn ? generateAmazonIsbnUrl(isbn) : generateAmazonUrl(finalTitle, finalAuthor),
-        rakutenUrl: coverResult.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
-      });
-      console.log(`[V] ${verified.length}/${needed} verified: "${finalTitle}"`);
-    } else {
-      // 楽天で未検証 — プレースホルダー表紙で補充候補に
-      unverified.push({
-        ...book,
-        isbn: '',
-        thumbnail: '',
-        amazonUrl: generateAmazonUrl(book.title, book.author),
-        rakutenUrl: generateRakutenUrl(book.title, book.author),
-      });
-    }
-  }
+    // 表紙は必須（恒久ルール） — 楽天で見つからない本はスキップ
+    if (!coverResult.verified || !coverResult.coverUrl) continue;
 
-  // 検証済みが不足 → 未検証で補充（必ずneeded冊返す）
-  while (verified.length < needed && unverified.length > 0) {
-    const fill = unverified.shift()!;
-    verified.push(fill);
-    console.log(`[V] ${verified.length}/${needed} unverified fill: "${fill.title}"`);
+    const finalTitle = coverResult.verifiedTitle || book.title;
+    const finalAuthor = coverResult.verifiedAuthor || book.author;
+    const isbn = coverResult.verifiedIsbn;
+    verified.push({
+      ...book,
+      isbn,
+      title: finalTitle,
+      author: finalAuthor,
+      thumbnail: coverResult.coverUrl,
+      amazonUrl: isbn ? generateAmazonIsbnUrl(isbn) : generateAmazonUrl(finalTitle, finalAuthor),
+      rakutenUrl: coverResult.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
+    });
+    console.log(`[V] ${verified.length}/${needed} done: "${finalTitle}"`);
   }
 
   return { verified, remaining: candidates.slice(lastCheckedIdx + 1) };
