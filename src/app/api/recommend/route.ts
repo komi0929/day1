@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { createAuthClient } from '@/lib/supabase';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
@@ -285,15 +285,7 @@ export async function POST(req: Request) {
         );
       }
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 16384,
-          responseMimeType: 'application/json',
-        },
-      });
+      const ai = new GoogleGenAI({ apiKey });
 
       // Heart profile context
       let pastContext = '';
@@ -354,12 +346,21 @@ ${wantFragments ? '- fragmentsはnote本文から印象的な一節を5〜8つ�
 
 指定されたJSON形式のみ出力してください。`;
 
-      const result = await model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-        systemInstruction: { role: 'model', parts: [{ text: buildSystemPrompt() + pastContext }] },
+      const result = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: userPrompt,
+        config: {
+          systemInstruction: buildSystemPrompt() + pastContext,
+          temperature: 0.7,
+          maxOutputTokens: 16384,
+          responseMimeType: 'application/json',
+          thinkingConfig: {
+            thinkingBudget: 1024,
+          },
+        },
       });
 
-      const rawText = result.response.text();
+      const rawText = result.text || '';
 
       let jsonText = rawText;
       const fenceMatch = rawText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);

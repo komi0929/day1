@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { createAuthClient } from '@/lib/supabase';
 
 const HEART_PROFILE_PROMPT = `あなたは心理カウンセラー兼編集者です。
@@ -40,16 +40,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'INVALID' }, { status: 400 });
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-    });
+    const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `${HEART_PROFILE_PROMPT}\n\n━━━━━━━━━━━━━━━━\n■ note記事タイトル: ${noteTitle || '（タイトルなし）'}\n━━━━━━━━━━━━━━━━\n${(noteBody || '').trim().slice(0, 4000)}\n━━━━━━━━━━━━━━━━`;
 
-    const result = await model.generateContent(prompt);
-    const summary = result.response.text().trim();
+    const result = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        temperature: 0.7,
+        maxOutputTokens: 1024,
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
+      },
+    });
+    const summary = (result.text || '').trim();
 
     // Save heart profile
     await supabase.from('heart_profiles').insert({

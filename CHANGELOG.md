@@ -1,11 +1,12 @@
 # Changelog
 
-## [2026-03-10] — 選書タイムアウト修正（gemini-2.0-flash切替）
+## [2026-03-10] — 選書タイムアウト修正（SDK移行 + thinkingBudget制御）
 
 ### 🐛 Critical Fix (本番504タイムアウト修復)
-- **根本原因**: `gemini-2.5-flash`（思考モデル）がレスポンス生成に30秒以上かかり、楽天API逐次検証と合わせてVercelの60秒タイムアウトを超過
-- **修正**: AIモデルを`gemini-2.0-flash`（高速・安定モデル）に変更。思考フェーズが不要なため応答時間が大幅短縮
-- **影響**: `/api/recommend`の504エラーが解消
+- **根本原因**: `gemini-2.5-flash`の思考フェーズが無制限で実行され、楽天API逐次検証と合わせてVercelの60秒タイムアウトを超過
+- **SDK移行**: 廃止済み`@google/generative-ai` → 現行`@google/genai`に完全移行（recommend + heart-profile両ルート）
+- **thinkingBudget制御**: `thinkingBudget: 1024`を設定し、選書品質を維持しつつ思考時間を制限。heart-profileは`thinkingBudget: 0`（思考不要）
+- **影響**: `/api/recommend`の504エラーが解消。選書の品質は`gemini-2.5-flash`のまま維持
 
 ## [2026-03-08] — 選書アーキテクチャ全面再設計＋品質改善（楽天API厳格検証+高速化）
 
