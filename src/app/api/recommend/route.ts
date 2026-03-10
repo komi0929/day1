@@ -222,6 +222,7 @@ async function verifyBooksSequentially(
   needed: number
 ): Promise<{ verified: BookResult[]; remaining: BookFromAI[] }> {
   const verified: BookResult[] = [];
+  const unverified: BookResult[] = [];
   let lastCheckedIdx = -1;
 
   for (let i = 0; i < candidates.length; i++) {
@@ -231,22 +232,38 @@ async function verifyBooksSequentially(
     const book = candidates[i];
     const coverResult = await getBookCover(book.title, book.author);
 
-    if (!coverResult.verified || !coverResult.coverUrl) continue;
+    if (coverResult.verified && coverResult.coverUrl) {
+      // 楽天で検証済み — 表紙・ISBN・正確なタイトル付き
+      const finalTitle = coverResult.verifiedTitle || book.title;
+      const finalAuthor = coverResult.verifiedAuthor || book.author;
+      const isbn = coverResult.verifiedIsbn;
+      verified.push({
+        ...book,
+        isbn,
+        title: finalTitle,
+        author: finalAuthor,
+        thumbnail: coverResult.coverUrl,
+        amazonUrl: isbn ? generateAmazonIsbnUrl(isbn) : generateAmazonUrl(finalTitle, finalAuthor),
+        rakutenUrl: coverResult.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
+      });
+      console.log(`[V] ${verified.length}/${needed} verified: "${finalTitle}"`);
+    } else {
+      // 楽天で未検証 — プレースホルダー表紙で補充候補に
+      unverified.push({
+        ...book,
+        isbn: '',
+        thumbnail: '',
+        amazonUrl: generateAmazonUrl(book.title, book.author),
+        rakutenUrl: generateRakutenUrl(book.title, book.author),
+      });
+    }
+  }
 
-    const finalTitle = coverResult.verifiedTitle || book.title;
-    const finalAuthor = coverResult.verifiedAuthor || book.author;
-
-    const isbn = coverResult.verifiedIsbn;
-    verified.push({
-      ...book,
-      isbn,
-      title: finalTitle,
-      author: finalAuthor,
-      thumbnail: coverResult.coverUrl,
-      amazonUrl: isbn ? generateAmazonIsbnUrl(isbn) : generateAmazonUrl(finalTitle, finalAuthor),
-      rakutenUrl: coverResult.rakutenUrl || generateRakutenUrl(finalTitle, finalAuthor),
-    });
-    console.log(`[V] ${verified.length}/${needed} done: "${finalTitle}"`);
+  // 検証済みが不足 → 未検証で補充（必ずneeded冊返す）
+  while (verified.length < needed && unverified.length > 0) {
+    const fill = unverified.shift()!;
+    verified.push(fill);
+    console.log(`[V] ${verified.length}/${needed} unverified fill: "${fill.title}"`);
   }
 
   return { verified, remaining: candidates.slice(lastCheckedIdx + 1) };
