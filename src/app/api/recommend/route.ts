@@ -155,32 +155,101 @@ function rakutenItemToResult(item: RakutenItem): CoverResult {
 }
 
 // ============================================================
-// 楽天 3段階検索 — ヒット率最大化
-// Step 1: title+author（高精度）
-// Step 2: title-only（著者名表記揺れ対策）
-// Step 3: keyword検索（タイトル表記揺れ・サブタイトル差異対策）
+// ISBN-First アーキテクチャ（恒久設計）
+// 1. Google Books API → タイトル+著者からISBN-13を解決
+// 2. 楽天 ISBN検索 → 表紙・リンク取得（ISBNは一意なので100%ヒット）
+// 3. フォールバック: 楽天タイトル検索（Google Books失敗時）
 // ============================================================
 const RAKUTEN_ORIGIN = 'https://compass.hitokoto.tech';
 const rakutenHeaders = { 'Origin': RAKUTEN_ORIGIN };
 
-/** 楽天APIに1回リクエストしてtitleLooseMatchガード付きでItemを返す */
-async function rakutenSearch(
-  base: string, params: string, title: string, label: string,
-): Promise<CoverResult | null> {
+/** Google Books APIでタイトル+著者からISBN-13を解決する */
+async function resolveIsbnViaGoogleBooks(title: string, author: string): Promise<string> {
+  const apiKey = process.env.GOOGLE_BOOKS_API_KEY || '';
+  const query = `intitle:${title} inauthor:${author}`;
+  const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=3&printType=books&langRestrict=ja${apiKey ? `&key=${apiKey}` : ''}`;
+
   try {
-    const res = await fetch(`${base}${params}`, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) {
+      console.warn(`[GB] HTTP ${res.status} for "${title}"`);
+      return '';
+    }
+    const data = await res.json();
+    if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
+      console.log(`[GB] No results for "${title}"`);
+      return '';
+    }
+
+    // 各volumeからISBN-13を探す
+    for (const item of data.items) {
+      const ids = item.volumeInfo?.industryIdentifiers;
+      if (!ids || !Array.isArray(ids)) continue;
+      const isbn13 = ids.find((id: { type: string; identifier: string }) => id.type === 'ISBN_13');
+      if (isbn13?.identifier) {
+        // タイトル軽量チェック（完全に無関係な本を弾く）
+        const gbTitle = item.volumeInfo?.title || '';
+        if (gbTitle && titleLooseMatch(title, gbTitle)) {
+          console.log(`[GB] ✅ "${title}" → ISBN: ${isbn13.identifier}`);
+          return isbn13.identifier;
+        }
+      }
+    }
+    console.log(`[GB] No ISBN-13 match for "${title}"`);
+    return '';
+  } catch (e) {
+    console.warn(`[GB] Error for "${title}":`, e);
+    return '';
+  }
+}
+
+/** 楽天APIにISBNで検索（100%精度） */
+async function rakutenSearchByIsbn(base: string, isbn: string): Promise<CoverResult | null> {
+  try {
+    const res = await fetch(`${base}&isbn=${isbn}`, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
     if (!res.ok) return null;
     const data = await res.json();
     const items = safeExtractRakutenItems(data);
-    for (const item of items) {
-      if (getRakutenCover(item) && titleLooseMatch(title, item.title || '')) {
-        console.log(`[V] \u2705 ${label} "${title}" \u2192 "${item.title}"`);
-        return rakutenItemToResult(item);
-      }
+    if (items.length > 0 && getRakutenCover(items[0])) {
+      console.log(`[V] ✅ ISBN "${isbn}" → "${items[0].title}"`);
+      return rakutenItemToResult(items[0]);
     }
   } catch (e) {
-    console.warn(`[V] ${label}\u30a8\u30e9\u30fc: "${title}"`, e);
+    console.warn(`[V] ISBN検索エラー: ${isbn}`, e);
   }
+  return null;
+}
+
+/** 楽天APIにタイトルで検索（フォールバック） */
+async function rakutenSearchByTitle(base: string, title: string, author: string): Promise<CoverResult | null> {
+  // タイトル+著者
+  try {
+    const res = await fetch(`${base}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
+    if (res.ok) {
+      const items = safeExtractRakutenItems(await res.json());
+      for (const item of items) {
+        if (getRakutenCover(item) && titleLooseMatch(title, item.title || '')) {
+          console.log(`[V] ✅ T+A "${title}" → "${item.title}"`);
+          return rakutenItemToResult(item);
+        }
+      }
+    }
+  } catch { /* continue */ }
+
+  // タイトルのみ
+  try {
+    const res = await fetch(`${base}&title=${encodeURIComponent(title)}`, { signal: AbortSignal.timeout(5000), headers: rakutenHeaders });
+    if (res.ok) {
+      const items = safeExtractRakutenItems(await res.json());
+      for (const item of items) {
+        if (getRakutenCover(item) && titleLooseMatch(title, item.title || '')) {
+          console.log(`[V] ✅ T-only "${title}" → "${item.title}"`);
+          return rakutenItemToResult(item);
+        }
+      }
+    }
+  } catch { /* continue */ }
+
   return null;
 }
 
@@ -192,31 +261,24 @@ async function getBookCover(title: string, author: string): Promise<CoverResult>
   const rakutenAffId = process.env.RAKUTEN_AFFILIATE_ID || '';
 
   if (!rakutenAppId || !rakutenAccessKey) {
-    console.warn(`[V] \u697d\u5929API\u8a8d\u8a3c\u60c5\u5831\u4e0d\u8db3`);
+    console.warn(`[V] 楽天API認証情報不足`);
     return empty;
   }
 
-  const base = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&accessKey=${rakutenAccessKey}&hits=10&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
+  const base = `https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404?applicationId=${rakutenAppId}&accessKey=${rakutenAccessKey}&hits=5&format=json${rakutenAffId ? `&affiliateId=${rakutenAffId}` : ''}`;
 
-  // Step 1: \u30bf\u30a4\u30c8\u30eb+\u8457\u8005\uff08\u9ad8\u7cbe\u5ea6\uff09
-  const s1 = await rakutenSearch(base, `&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`, title, 'T+A');
-  if (s1) return s1;
+  // Primary: Google Books → ISBN → 楽天ISBN検索
+  const isbn = await resolveIsbnViaGoogleBooks(title, author);
+  if (isbn) {
+    const result = await rakutenSearchByIsbn(base, isbn);
+    if (result) return result;
+  }
 
-  // Step 2: \u30bf\u30a4\u30c8\u30eb\u306e\u307f\uff08\u8457\u8005\u540d\u8868\u8a18\u63fa\u308c\u5bfe\u7b56\uff09
-  const s2 = await rakutenSearch(base, `&title=${encodeURIComponent(title)}`, title, 'T-only');
-  if (s2) return s2;
+  // Fallback: 楽天タイトル検索
+  const fallback = await rakutenSearchByTitle(base, title, author);
+  if (fallback) return fallback;
 
-  // Step 3: keyword\u691c\u7d22\uff08\u30bf\u30a4\u30c8\u30eb\u306e\u8868\u8a18\u63fa\u308c\u30fb\u30b5\u30d6\u30bf\u30a4\u30c8\u30eb\u5dee\u7570\u5bfe\u7b56\uff09
-  const mainTitle = title
-    .replace(/[\s\u3000]+/g, ' ')
-    .replace(/[\uff08(].+[)\uff09]/g, '')
-    .replace(/[-\u2212\u2013\u2014:\uff1a].+$/, '')
-    .trim();
-  const keyword = `${mainTitle} ${author}`.trim();
-  const s3 = await rakutenSearch(base, `&keyword=${encodeURIComponent(keyword)}`, title, 'KW');
-  if (s3) return s3;
-
-  console.log(`[V] \u274c "${title}" \u2014 3\u6bb5\u968e\u3059\u3079\u3066\u5931\u6557`);
+  console.log(`[V] ❌ "${title}" — ISBN検索もタイトル検索も失敗`);
   return empty;
 }
 
