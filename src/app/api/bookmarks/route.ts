@@ -24,19 +24,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'INVALID_BOOK' }, { status: 400 });
     }
 
-    // 実際のDBカラム名に合わせたupsert
-    const { error } = await supabase.from('bookmarks').upsert({
+    // DBの実カラム名に合わせたupsert（supabase_compass.sqlのbookmarksテーブル定義に準拠）
+    const upsertData = {
       user_id: user.id,
-      title: book.title,           // DB: title (text, NOT NULL)
-      author: book.author,         // DB: author (text, DEFAULT '')
-      url: book.amazonUrl || '',   // DB: url (text, NOT NULL → DEFAULT '')
-      image_url: book.thumbnail || '',  // DB: image_url (text)
-      label: book.label || '',     // DB: label (text, DEFAULT '')
-      summary: book.summary || '', // DB: summary (text, DEFAULT '')
-      letter: book.letter || '',   // DB: letter (text, DEFAULT '')
-      rakuten_url: book.rakutenUrl || '', // DB: rakuten_url (text, DEFAULT '')
-      selection_id: selectionId || null,  // DB: selection_id (uuid)
-    }, { onConflict: 'user_id,title,author' });
+      book_title: book.title,
+      book_author: book.author,
+      book_label: book.label || '',
+      book_summary: book.summary || '',
+      book_letter: book.letter || '',
+      book_thumbnail: book.thumbnail || '',
+      book_amazon_url: book.amazonUrl || '',
+      selection_id: selectionId || null,
+    };
+
+    const { error } = await supabase.from('bookmarks').upsert(
+      upsertData,
+      { onConflict: 'user_id,book_title,book_author' }
+    );
 
     if (error) {
       console.error('Bookmark upsert error:', JSON.stringify(error));
@@ -70,12 +74,12 @@ export async function DELETE(req: Request) {
 
     const { bookTitle, bookAuthor } = await req.json();
 
-    // 実際のDBカラム名で削除
+    // DB実カラム名で削除
     const { error } = await supabase.from('bookmarks')
       .delete()
       .eq('user_id', user.id)
-      .eq('title', bookTitle)
-      .eq('author', bookAuthor);
+      .eq('book_title', bookTitle)
+      .eq('book_author', bookAuthor);
 
     if (error) {
       console.error('Bookmark delete error:', error);

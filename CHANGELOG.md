@@ -1,5 +1,12 @@
 # Changelog
 
+## [2026-03-12] — しおり機能 完全修復（DBカラム名不一致バグ）
+
+### 🐛 Critical Fix
+- **しおりが一切保存できない致命的バグを修正**: `/api/bookmarks/route.ts`がDBに存在しないカラム名（`title`, `author`, `url`等）でupsertしていたが、実DBスキーマのカラム名は`book_title`, `book_author`, `book_amazon_url`等だった。onConflict制約も存在しないカラム名を指定しており全upsertが失敗
+- **修正内容**: API側のupsert/deleteカラム名をDBスキーマ（`supabase_compass.sql`定義）に合わせて修正。ライブラリページ（`/library/page.tsx`）のBookmark型と全参照箇所も同様に修正
+- **影響**: しおり保存・削除・表示が完全に復旧
+
 ## [2026-03-11] — 本棚ナビゲーション常時表示
 
 ### 🔧 UX改善
