@@ -125,15 +125,6 @@ function safeExtractRakutenItems(data: unknown): RakutenItem[] {
 
 
 
-/** タイトルガード付きで最適なItemを選択（タイトル検索用） */
-function findBestMatch(data: unknown, searchTitle: string): RakutenItem | null {
-  const items = safeExtractRakutenItems(data);
-  for (const item of items) {
-    if (titleLooseMatch(searchTitle, item.title || '')) return item;
-  }
-  return null; // 全Items不一致 → 別の本なので採用しない
-}
-
 /** 楽天Itemから表紙URL取得 */
 function getRakutenCover(item: RakutenItem): string {
   return (item.largeImageUrl || item.mediumImageUrl || '')
