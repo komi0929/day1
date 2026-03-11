@@ -24,84 +24,72 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'INVALID_BOOK' }, { status: 400 });
     }
 
-    // Step 1: まずDBの実際のカラム名を取得
-    const { data: columns, error: colError } = await supabase
-      .from('bookmarks')
-      .select('*')
-      .limit(0);
-
-    // カラム取得失敗時のログ
-    if (colError) {
-      console.error('[Bookmark] Schema check error:', colError.message);
-    }
-
-    // Step 2: 基本データ（確実に存在するカラムのみ）
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const baseData: Record<string, any> = {
+    const baseData = {
       user_id: user.id,
+      title: book.title,
+      author: book.author,
+      url: book.amazonUrl || '',
+      image_url: book.thumbnail || '',
+      label: book.label || '',
+      summary: book.summary || '',
+      letter: book.letter || '',
+      rakuten_url: book.rakutenUrl || '',
+      selection_id: selectionId || null,
     };
 
-    // カラム名のマッピング候補（正規化済みと旧名の両方を試行）
-    // DBの実カラム名を動的に検出
-    const columnNames = columns ? Object.keys(columns[0] || {}) : [];
-    console.log('[Bookmark] Detected DB columns:', columnNames.length > 0 ? columnNames.join(', ') : 'empty table, using guess');
-
-    // タイトルカラム判定
-    if (columnNames.includes('title') || columnNames.length === 0) {
-      baseData.title = book.title;
-      baseData.author = book.author;
-    } else if (columnNames.includes('book_title')) {
-      baseData.book_title = book.title;
-      baseData.book_author = book.author;
-    }
-
-    // オプションカラム（存在する場合のみ設定）
-    const optionalMappings = [
-      { normalized: 'url', old: 'book_amazon_url', value: book.amazonUrl || '' },
-      { normalized: 'image_url', old: 'book_thumbnail', value: book.thumbnail || '' },
-      { normalized: 'label', old: 'book_label', value: book.label || '' },
-      { normalized: 'summary', old: 'book_summary', value: book.summary || '' },
-      { normalized: 'letter', old: 'book_letter', value: book.letter || '' },
-      { normalized: 'rakuten_url', old: null, value: book.rakutenUrl || '' },
+    // bookmarks_status_check 制約対応:
+    // statusカラムのCHECK制約に許容される値が不明なため、
+    // 全候補を順番に試行する
+    const statusCandidates = [
+      'saved',        // 最も一般的
+      'active',       // アクティブ
+      'want_to_read', // 読みたい
+      'unread',       // 未読
+      'reading',      // 読書中
+      'read',         // 既読
+      'pending',      // 保留
+      'bookmarked',   // ブックマーク済み
     ];
 
-    for (const mapping of optionalMappings) {
-      if (columnNames.length === 0) {
-        // テーブルが空の場合、正規化名を優先
-        baseData[mapping.normalized] = mapping.value;
-      } else if (columnNames.includes(mapping.normalized)) {
-        baseData[mapping.normalized] = mapping.value;
-      } else if (mapping.old && columnNames.includes(mapping.old)) {
-        baseData[mapping.old] = mapping.value;
+    let lastError = null;
+
+    for (const statusVal of statusCandidates) {
+      const { error } = await supabase.from('bookmarks').upsert(
+        { ...baseData, status: statusVal },
+        { onConflict: 'user_id,title,author' }
+      );
+
+      if (!error) {
+        console.log(`[Bookmark] SUCCESS with status='${statusVal}' for: ${book.title}`);
+        return NextResponse.json({ success: true });
       }
-      // どちらも存在しなければスキップ
+
+      lastError = error;
+
+      // CHECK制約違反以外のエラーは即座にリトライを止める
+      if (!error.message?.includes('status_check')) {
+        console.error(`[Bookmark] Non-status error:`, JSON.stringify(error));
+        return NextResponse.json({ error: 'BOOKMARK_FAILED', details: error.message }, { status: 500 });
+      }
+
+      console.log(`[Bookmark] status='${statusVal}' failed CHECK. Trying next...`);
     }
 
-    // selection_id
-    if (columnNames.length === 0 || columnNames.includes('selection_id')) {
-      baseData.selection_id = selectionId || null;
-    }
-
-    // onConflict のカラム名も動的に決定
-    const titleCol = columnNames.includes('book_title') ? 'book_title' : 'title';
-    const authorCol = columnNames.includes('book_author') ? 'book_author' : 'author';
-    const conflictStr = `user_id,${titleCol},${authorCol}`;
-
-    console.log('[Bookmark] Upsert data keys:', Object.keys(baseData).join(', '));
-    console.log('[Bookmark] onConflict:', conflictStr);
-
-    const { error } = await supabase.from('bookmarks').upsert(
+    // 全候補が失敗: statusカラムなしで最終試行（DEFAULTが有効かも）
+    // ※ただしこれは前回失敗したパターンなので最終手段
+    const { error: finalError } = await supabase.from('bookmarks').upsert(
       baseData,
-      { onConflict: conflictStr }
+      { onConflict: 'user_id,title,author' }
     );
 
-    if (error) {
-      console.error('[Bookmark] Upsert FAILED:', JSON.stringify(error));
-      return NextResponse.json({ error: 'BOOKMARK_FAILED', details: error.message }, { status: 500 });
+    if (!finalError) {
+      console.log(`[Bookmark] SUCCESS without status for: ${book.title}`);
+      return NextResponse.json({ success: true });
     }
 
-    console.log('[Bookmark] Upsert SUCCESS for:', book.title);
-    return NextResponse.json({ success: true });
+    console.error('[Bookmark] ALL attempts failed. Last error:', JSON.stringify(lastError));
+    console.error('[Bookmark] No-status error:', JSON.stringify(finalError));
+    return NextResponse.json({ error: 'BOOKMARK_FAILED', details: finalError.message }, { status: 500 });
   } catch (error) {
     console.error('[Bookmark] API error:', error);
     return NextResponse.json({ error: 'BOOKMARK_FAILED' }, { status: 500 });
@@ -128,24 +116,14 @@ export async function DELETE(req: Request) {
 
     const { bookTitle, bookAuthor } = await req.json();
 
-    // 両方のカラム名で試行
-    let result = await supabase.from('bookmarks')
+    const { error } = await supabase.from('bookmarks')
       .delete()
       .eq('user_id', user.id)
       .eq('title', bookTitle)
       .eq('author', bookAuthor);
 
-    if (result.error) {
-      // 旧カラム名でリトライ
-      result = await supabase.from('bookmarks')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('book_title', bookTitle)
-        .eq('book_author', bookAuthor);
-    }
-
-    if (result.error) {
-      console.error('[Bookmark] Delete error:', result.error);
+    if (error) {
+      console.error('[Bookmark] Delete error:', error);
       return NextResponse.json({ error: 'DELETE_FAILED' }, { status: 500 });
     }
 
