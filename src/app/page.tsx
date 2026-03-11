@@ -363,27 +363,23 @@ export default function Home() {
             </svg>
             compass
           </button>
-          {user && (
-            <Link href="/library" className="text-sm font-bold px-5 py-2.5 rounded-full transition-all active:scale-[0.97]"
-              style={{ color: '#fff', background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', boxShadow: '0 2px 8px rgba(232, 101, 90, 0.25)' }}>
-              わたしの本棚
-            </Link>
-          )}
+          <Link href="/library" className="text-sm font-bold px-5 py-2.5 rounded-full transition-all active:scale-[0.97]"
+            style={{ color: '#fff', background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', boxShadow: '0 2px 8px rgba(232, 101, 90, 0.25)' }}>
+            わたしの本棚
+          </Link>
         </header>
       )}
 
       {/* ═══ INPUT PHASE ═══ */}
       {phase === 'input' && (
         <main className="min-h-dvh">
-          {/* User nav - visible on input screen */}
-          {user && (
-            <div className="flex justify-end px-5 pt-4">
-              <Link href="/library" className="text-sm font-bold px-5 py-2.5 rounded-full transition-all active:scale-[0.97]"
-                style={{ color: '#fff', background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', boxShadow: '0 2px 8px rgba(232, 101, 90, 0.25)' }}>
-                わたしの本棚
-              </Link>
-            </div>
-          )}
+          {/* Library nav - always visible on input screen */}
+          <div className="flex justify-end px-5 pt-4">
+            <Link href="/library" className="text-sm font-bold px-5 py-2.5 rounded-full transition-all active:scale-[0.97]"
+              style={{ color: '#fff', background: 'linear-gradient(135deg, var(--g-coral), var(--g-peach))', boxShadow: '0 2px 8px rgba(232, 101, 90, 0.25)' }}>
+              わたしの本棚
+            </Link>
+          </div>
           <section className="flex items-center justify-center px-4 pt-20 pb-12 md:pt-28 md:pb-16">
             <div className="max-w-lg w-full text-center">
               <div className="mb-10 fade-in-up">
@@ -453,7 +449,7 @@ export default function Home() {
 
           <footer className="border-t px-4 py-8 text-center" style={{ borderColor: 'var(--color-border)' }}>
             <div className="flex items-center justify-center gap-6 text-[11px]" style={{ color: 'var(--color-text-dim)' }}>
-              {user && <Link href="/library" className="hover:underline" style={{ color: 'var(--color-text-dim)' }}>わたしの本棚</Link>}
+              <Link href="/library" className="hover:underline" style={{ color: 'var(--color-text-dim)' }}>わたしの本棚</Link>
               <Link href="/terms" className="hover:underline" style={{ color: 'var(--color-text-dim)' }}>利用規約</Link>
               <Link href="/privacy" className="hover:underline" style={{ color: 'var(--color-text-dim)' }}>プライバシーポリシー</Link>
             </div>
