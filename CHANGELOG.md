@@ -1,5 +1,11 @@
 # Changelog
 
+## [2026-03-11] — OGP画像ヘッダー修正（noteクローラー対応）
+
+### 🔧 Config
+- **OGP画像のセキュリティヘッダー除外**: `next.config.ts`で`/ogp.png`と`/og-image.png`にCSP/X-Frame-Optionsが適用されないよう先行マッチルールを追加。noteのOGPクローラーが画像を取得できるようにした
+- **OGP画像用ヘッダー設定**: `Cache-Control`（1時間キャッシュ+SWR）、`Access-Control-Allow-Origin: *`を明示的に設定
+
 ## [2026-03-11] — OGP画像修正
 
 ### 🔧 Config
