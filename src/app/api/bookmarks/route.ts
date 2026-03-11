@@ -36,8 +36,6 @@ export async function POST(req: Request) {
       letter: book.letter || '',   // DB: letter (text, DEFAULT '')
       rakuten_url: book.rakutenUrl || '', // DB: rakuten_url (text, DEFAULT '')
       selection_id: selectionId || null,  // DB: selection_id (uuid)
-      status: 'active',            // DB: status (text, NOT NULL)
-      ai_processing_status: 'completed', // DB: ai_processing_status (text, NOT NULL)
     }, { onConflict: 'user_id,title,author' });
 
     if (error) {

@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026-03-11] — しおり機能 500エラー修正（本番クリティカルバグ）
+
+### 🐛 Critical Fix
+- **しおりをはさむ機能が完全に動作しない致命的バグを修正**: `POST /api/bookmarks` が `status: 'active'` と `ai_processing_status: 'completed'` をDB挿入時に送信していたが、DBの `bookmarks_status_check` チェック制約に違反して500エラーを返していた。元のDBスキーマにこれらのカラムは存在しないため、upsertから除去
+
 ## [2026-03-11] — OGP画像ヘッダー修正（noteクローラー対応）
 
 ### 🔧 Config
