@@ -24,22 +24,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'INVALID_BOOK' }, { status: 400 });
     }
 
-    // DBの実カラム名に合わせたupsert（supabase_compass.sqlのbookmarksテーブル定義に準拠）
-    const upsertData = {
-      user_id: user.id,
-      book_title: book.title,
-      book_author: book.author,
-      book_label: book.label || '',
-      book_summary: book.summary || '',
-      book_letter: book.letter || '',
-      book_thumbnail: book.thumbnail || '',
-      book_amazon_url: book.amazonUrl || '',
-      selection_id: selectionId || null,
-    };
-
+    // DB正規化済みカラム名でupsert（status/ai_processing_statusは送らない）
     const { error } = await supabase.from('bookmarks').upsert(
-      upsertData,
-      { onConflict: 'user_id,book_title,book_author' }
+      {
+        user_id: user.id,
+        title: book.title,
+        author: book.author,
+        url: book.amazonUrl || '',
+        image_url: book.thumbnail || '',
+        label: book.label || '',
+        summary: book.summary || '',
+        letter: book.letter || '',
+        rakuten_url: book.rakutenUrl || '',
+        selection_id: selectionId || null,
+      },
+      { onConflict: 'user_id,title,author' }
     );
 
     if (error) {
@@ -74,12 +73,11 @@ export async function DELETE(req: Request) {
 
     const { bookTitle, bookAuthor } = await req.json();
 
-    // DB実カラム名で削除
     const { error } = await supabase.from('bookmarks')
       .delete()
       .eq('user_id', user.id)
-      .eq('book_title', bookTitle)
-      .eq('book_author', bookAuthor);
+      .eq('title', bookTitle)
+      .eq('author', bookAuthor);
 
     if (error) {
       console.error('Bookmark delete error:', error);
